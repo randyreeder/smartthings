@@ -3,7 +3,7 @@
 require __DIR__ . '/../vendor/autoload.php';
 
 # Create a Personal Access Token and add it below
-$userBearerToken = 'f0566d96-044f-482c-b023-d1e327a6703e';
+$userBearerToken = parse_ini_file(__DIR__ . '/../bearer.ini')['bearer'];
 
 $smartAPI = new SmartThings\SmartThingsAPI($userBearerToken);
 $devices = $smartAPI->list_devices();
