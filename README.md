@@ -15,26 +15,30 @@ Installation using `composer`:
 
 Follow the instructions at the Smart Things Developer page on how to create a [Personal Access (Bearer) Token](https://developer-preview.smartthings.com/docs/advanced/authorization-and-permissions/#personal-access-tokens) for authenticating with the API. Then you can use the following code for testing:
 
-    <?php
-      require  __DIR__  .  '/../vendor/autoload.php';
-      use SmartThings\SmartThingsAPI; 
+```php
+<?php
+ require  __DIR__  .  '/../vendor/autoload.php';
+ use SmartThings\SmartThingsAPI; 
       
-      # Create a Personal Access Token and add it below
-      $userBearerToken = '<<TOKEN>>';
-      $smartAPI = new SmartThingsAPI($userBearerToken);
-      $devices = $smartAPI->list_devices(); 
+ # Create a Personal Access Token and add it below
+ $userBearerToken = '<<TOKEN>>';
+ $smartAPI = new SmartThingsAPI($userBearerToken);
+ $devices = $smartAPI->list_devices(); 
       
-      $tv = $devices[0];
-      $tv->power_on();
-      $tv->volume(10);
-    ?>
+ $tv = $devices[0];
+ $tv->power_on();
+ $tv->volume(10);
+?>
+```
 
 You can view the TV class in `/src/smartThings/devices/tv.php` for all available functions and commands.
 
 You can also make a basic usage of Locations and Rooms:
 
-    $location = new SmartThings\Locations('<<LOCATION_ID>>');
-    $location->get_rooms();
-    
-    $room = new SmartThings\Room('<<ROOM_ID>>');
-    $room->name();
+```php
+$location = new SmartThings\Locations('<<LOCATION_ID>>');
+$location->get_rooms();
+
+$room = new SmartThings\Room('<<ROOM_ID>>');
+$room->name();
+```
