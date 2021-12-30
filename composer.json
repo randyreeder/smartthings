@@ -4,6 +4,7 @@
     "version": "1.0.0",
     "type": "library",
     "homepage": "https://github.com/giannisftaras/smartthings",
+    "license": "Apache-2.0",
     "authors": [
         {
             "name": "Giannis Ftaras",
