@@ -70,11 +70,19 @@ class SmartThingsAPI {
         }
         $device_obj = array();
         foreach ($this->devices as $device) {
-            switch($device['deviceTypeName']) {
+            switch($device['name']) {
                 case 'Samsung OCF TV':
                     $device_obj[] = new TV($device);
                     break;
+                case 'ecobee Sensor':
+                    $device_obj[] = new EcobeeSensor($device);
+                    break;
                 default:
+                    // if 'ecobee Thermostat' is in the device name
+                    if(strpos($device['name'], 'ecobee Thermostat') !== false) {
+                        $device_obj[] = new Ecobee($device);
+                        break;
+                    }
                     $device_obj[] = new Generic($device);
                     break;
             }

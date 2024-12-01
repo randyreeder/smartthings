@@ -4,6 +4,7 @@ For the API calls the [GuzzleHTTP](https://github.com/guzzle/guzzle) library is 
 
 #### Supported devices:
  - TV
+ - Ecobee
 
 #### Installation:
 You can install the library using `composer` or by simply downloading this repository and including it in your project.
@@ -13,7 +14,7 @@ Installation using `composer`:
 
 #### Usage:
 
-Follow the instructions at the Smart Things Developer page on how to create a [Personal Access (Bearer) Token](https://developer-preview.smartthings.com/docs/advanced/authorization-and-permissions/#personal-access-tokens) for authenticating with the API. Then you can use the following code for testing:
+Follow the instructions at the Smart Things Developer page on how to create a [Personal Access (Bearer) Token](https://developer.smartthings.com/docs/getting-started/authorization-and-permissions) for authenticating with the API. Then you can use the following code for testing:
 
 ```php
 <?php

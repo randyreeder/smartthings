@@ -10,8 +10,9 @@ class Generic extends SmartThingsAPI implements Device {
 
     use CMD_common;
 
-    private $deviceId;
-    private $deviceInfo;
+    private $deviceId = null;
+    private $deviceInfo = null;
+    private $deviceStatus = null;
 
     function __construct(array $deviceInfo) {
         parent::__init();
@@ -32,7 +33,8 @@ class Generic extends SmartThingsAPI implements Device {
     public function status(bool $update = false) : object {
         if (empty($this->deviceStatus) || $update) {
             $command_resp = parent::apiCall('GET', 'devices/' . $this->deviceId . '/status');
-            if ($command_resp['code'] == 200) {
+            if ($command_resp['code'] == 200 && array_key_exists('main', $command_resp['response']['components']))
+            {
                 $this->deviceStatus = $command_resp['response']['components']['main'];
             }
         }
