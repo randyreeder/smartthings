@@ -70,6 +70,7 @@ class SmartThingsAPI {
         }
         $device_obj = array();
         foreach ($this->devices as $device) {
+            $generic_device = new Generic($device);
             switch($device['name']) {
                 case 'Samsung OCF TV':
                     $device_obj[] = new TV($device);
@@ -81,6 +82,11 @@ class SmartThingsAPI {
                     // if 'ecobee Thermostat' is in the device name
                     if(strpos($device['name'], 'ecobee Thermostat') !== false) {
                         $device_obj[] = new Ecobee($device);
+                        break;
+                    }
+                    $status = $generic_device->status();
+                    if(property_exists($status, 'switch') && array_key_exists('switch', $status->switch) && array_key_exists('value', $status->switch['switch'])) {
+                        $device_obj[] = new Outlet($device);
                         break;
                     }
                     $device_obj[] = new Generic($device);

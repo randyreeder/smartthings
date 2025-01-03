@@ -21,6 +21,7 @@ class Generic extends SmartThingsAPI implements Device {
         }
         $this->deviceId = $deviceInfo['deviceId'];
         $this->deviceInfo = $deviceInfo;
+        $this->deviceStatus = $this->status();
     }
 
     public function info(bool $update = false) : object {

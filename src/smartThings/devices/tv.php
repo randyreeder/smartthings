@@ -2,41 +2,9 @@
 
 namespace SmartThings;
 
-class TV extends SmartThingsAPI implements Device {
+class TV extends Generic implements Device {
 
     use CMD_common;
-
-    private $deviceId;
-    private $deviceInfo;
-    private $deviceStatus;
-
-    function __construct(array $deviceInfo) {
-        parent::__init();
-        if (empty($deviceInfo['deviceId'])) {
-            throw new \Exception('You need to specify a valid deviceId');
-        }
-        $this->deviceId = $deviceInfo['deviceId'];
-        $this->deviceInfo = $deviceInfo;
-        $this->deviceStatus = $this->status();
-    }
-
-    public function info(bool $update = false) : object {
-        if (empty($deviceInfo) || $update) {
-            $this->deviceInfo = parent::apiCall('GET', 'devices/' . $this->deviceId)['response'];
-        }
-        return (object) $this->deviceInfo;
-    }
-
-    public function status(bool $update = false) : object {
-        if (empty($this->deviceStatus) || $update) {
-            $command_resp = parent::apiCall('GET', 'devices/' . $this->deviceId . '/status');
-            if ($command_resp['code'] == 200) {
-                $this->deviceStatus = $command_resp['response']['components']['main'];
-            }
-        }
-        
-        return (object) $this->deviceStatus;
-    }
 
     public function volume_up() : bool {
         $request = [

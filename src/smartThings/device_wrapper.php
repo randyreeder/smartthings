@@ -7,6 +7,7 @@ require __DIR__ . '/devices/generic.php';
 require __DIR__ . '/devices/tv.php';
 require __DIR__ . '/devices/ecobee.php';
 require __DIR__ . '/devices/ecobee_sensor.php';
+require __DIR__ . '/devices/outlet.php';
 
 interface Device {
 
