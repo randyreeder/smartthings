@@ -6,6 +6,7 @@ require __DIR__ . '/device_wrapper.php';
 require __DIR__ . '/locations_rooms.php';
 $smartThingsAPI_object;
 
+
 class SmartThingsAPI {
 
     private $devices;
@@ -14,6 +15,7 @@ class SmartThingsAPI {
     protected $bearer;
     protected $client;
     protected $request_body;
+    protected $code_mapping;
 
     function __construct(string $bearer) {
         if (!$this->validateBearerToken($bearer)) {
@@ -37,6 +39,17 @@ class SmartThingsAPI {
         ];
         global $smartThingsAPI_object;
         $smartThingsAPI_object = $this;
+
+        $this->code_mapping = Array( 
+            200 => 'OK',
+            400 => 'Bad Request',
+            401 => 'Unauthorized',
+            403 => 'Forbidden',
+            404 => 'Not Found',
+            405 => 'Method Not Allowed',
+            500 => 'Internal Server Error'
+        );
+
     }
 
     /**
@@ -50,6 +63,18 @@ class SmartThingsAPI {
         $this->client = $smartThingsAPI_object->client;
         $this->request_body = $smartThingsAPI_object->request_body;
     }
+
+    
+    function getErrorMessageFromCode($code) {
+        if(array_key_exists($code, $this->code_mapping)) {
+            return $this->code_mapping[$code];
+        }
+        else {
+            return 'Unknown error';
+        }
+    }
+
+
 
     /**
      * Validate if the Bearer token exists and is a valid GUID
@@ -66,7 +91,18 @@ class SmartThingsAPI {
      */
     public function list_devices(bool $update = false) : array {
         if (empty($this->devices) || $update) {
-            $this->devices = $this->apiCall('GET', 'devices/')['response']['items'];
+            $result = $this->apiCall('GET', 'devices/');
+            if($result['code'] != 200) {
+                // throw exception
+                throw new \Exception($this->getErrorMessageFromCode($result['code']), $result['code']);
+            }
+            $response = $result['response'];
+            if($response != null && array_key_exists('items', $response)) {
+                $this->devices = $response['items'];
+            }
+            else {
+                $this->devices = array();
+            }
         }
         $device_obj = array();
         foreach ($this->devices as $device) {
