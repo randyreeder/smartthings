@@ -125,7 +125,7 @@ class SmartThingsAPI {
                         $device_obj[] = new Outlet($device);
                         break;
                     }
-                    $device_obj[] = new Generic($device);
+                    $device_obj[] = $generic_device;
                     break;
             }
         }
