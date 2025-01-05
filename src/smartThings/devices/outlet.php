@@ -11,7 +11,11 @@ class Outlet extends Generic implements Device {
     use CMD_common;
 
     public function get_value() : string {
-        return $this->status()->switch['switch']['value'];
+        $value = $this->status()->switch['switch']['value'];
+        if($value == null) {
+            return '';
+        }
+        return $value;
     }
 
 }

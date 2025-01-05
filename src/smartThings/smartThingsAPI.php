@@ -19,7 +19,7 @@ class SmartThingsAPI {
 
     function __construct(string $bearer) {
         if (!$this->validateBearerToken($bearer)) {
-            throw new \Exception('You need to specify a valid bearer token');
+            throw new \Exception('Invalid bearer token', 401);
         }
         $this->bearer = $bearer;
         $this->cookieStorage = new \GuzzleHttp\Cookie\CookieJar;
