@@ -24,14 +24,16 @@ class SmartThingsAPI {
         $this->bearer = $bearer;
         $this->cookieStorage = new \GuzzleHttp\Cookie\CookieJar;
         $this->client = new \GuzzleHttp\Client([
-            'base_uri' => 'https://api.smartthings.com/v1/',
+            'base_uri' => 'https://api.smartthings.com/',
             'timeout'  => 2.0,
             'cookies' => $this->cookieStorage,
             'http_errors' => false
         ]);
         $this->request_body['headers'] = [
             'Authorization' => 'Bearer ' . $this->bearer,
-            'Content-Type' => 'application/json'
+            'Content-Type' => 'application/json',
+            //'Accept' => 'application/vnd.smartthings+json;v=1'
+            'Accept' => 'application/vnd.smartthings+json;v=20170916'
         ];
         $this->request_body['allow_redirects'] = [
             'max' => 2,
@@ -91,7 +93,8 @@ class SmartThingsAPI {
      */
     public function list_devices(bool $update = false) : array {
         if (empty($this->devices) || $update) {
-            $result = $this->apiCall('GET', 'devices/');
+            //$result = $this->apiCall('GET', 'devices/');
+            $result = $this->apiCall('GET', 'devices?capabilitiesMode=and&includeStatus=true');
             if($result['code'] != 200) {
                 // throw exception
                 throw new \Exception($this->getErrorMessageFromCode($result['code']), $result['code']);
@@ -130,6 +133,19 @@ class SmartThingsAPI {
             }
         }
         return $device_obj;
+    }
+
+    public function getStatusFromInfo($info) {
+        $status = Array();
+        if(array_key_exists('components', $info) && array_key_exists(0, $info['components']) && array_key_exists('capabilities', $info['components']['0'])) {
+            $capabilities = $info['components'][0]['capabilities'];
+            foreach ($capabilities as $capability) {
+                if(array_key_exists('id', $capability) && array_key_exists('status', $capability)) {
+                    $status[$capability['id']] = $capability['status'];
+                }
+            }
+        }
+        return $status;
     }
 
     /**

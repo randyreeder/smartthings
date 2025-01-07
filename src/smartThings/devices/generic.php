@@ -21,18 +21,18 @@ class Generic extends SmartThingsAPI implements Device {
         }
         $this->deviceId = $deviceInfo['deviceId'];
         $this->deviceInfo = $deviceInfo;
-        $this->deviceStatus = $this->status();
+        $this->deviceStatus = $this->getStatusFromInfo($this->deviceInfo);
     }
 
     public function info(bool $update = false) : object {
-        if (empty($deviceInfo) || $update) {
+        if (empty($this->deviceInfo) || $update) {
             $this->deviceInfo = parent::apiCall('GET', 'devices/' . $this->deviceId)['response'];
         }
         return (object) $this->deviceInfo;
     }
 
     public function status(bool $update = false) : object {
-        if (empty($this->deviceStatus) || $update) {
+        if ($this->deviceStatus === null || $update) {
             $command_resp = parent::apiCall('GET', 'devices/' . $this->deviceId . '/status');
             if ($command_resp['code'] == 200 && array_key_exists('main', $command_resp['response']['components']))
             {
