@@ -18,6 +18,15 @@ class Outlet extends Generic implements Device {
         return $value;
     }
 
+    public function set_value($value) {
+        $request = [
+            'capability' => 'switch',
+            'command' => $value
+        ];
+        $command_resp = parent::apiCall('POST', 'devices/' . $this->deviceId . '/commands', $request);
+        return $this->validate_response($command_resp);
+    }
+
 }
 
 ?>

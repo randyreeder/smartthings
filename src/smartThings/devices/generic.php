@@ -10,7 +10,7 @@ class Generic extends SmartThingsAPI implements Device {
 
     use CMD_common;
 
-    private $deviceId = null;
+    protected $deviceId = null;
     private $deviceInfo = null;
     private $deviceStatus = null;
 

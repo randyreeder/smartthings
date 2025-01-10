@@ -64,6 +64,7 @@ class SmartThingsAPI {
         }
         $this->client = $smartThingsAPI_object->client;
         $this->request_body = $smartThingsAPI_object->request_body;
+        $this->code_mapping = $smartThingsAPI_object->code_mapping;
     }
 
     
@@ -88,6 +89,16 @@ class SmartThingsAPI {
         return false;
     }
 
+    public function getDeviceById(string $deviceId) : Generic {
+        //$device = $this->apiCall('GET', 'devices/' . $deviceId)['response'];
+        $result = $this->apiCall('GET', 'devices/' . $deviceId . '?capabilitiesMode=and&includeStatus=true');
+        if($result['code'] != 200) {
+            throw new \Exception($this->getErrorMessageFromCode($result['code']), $result['code']);
+        }
+        $device = $result['response'];
+        return $this->getDeviceObject($device);
+    }
+
     /**
      * List account devices as sorted class bojects
      */
@@ -107,30 +118,35 @@ class SmartThingsAPI {
                 $this->devices = array();
             }
         }
-        $device_obj = array();
+        $device_objects = array();
         foreach ($this->devices as $device) {
-            $generic_device = new Generic($device);
-            switch($device['name']) {
-                case 'Samsung OCF TV':
-                    $device_obj[] = new TV($device);
+            $device_objects[] = $this->getDeviceObject($device);
+        }
+        return $device_objects;
+    }
+
+    private function getDeviceObject($device) {
+        $generic_device = new Generic($device);
+        $device_obj = $generic_device;
+        switch($device['name']) {
+            case 'Samsung OCF TV':
+                $device_obj = new TV($device);
+                break;
+            case 'ecobee Sensor':
+                $device_obj = new EcobeeSensor($device);
+                break;
+            default:
+                // if 'ecobee Thermostat' is in the device name
+                if(strpos($device['name'], 'ecobee Thermostat') !== false) {
+                    $device_obj = new Ecobee($device);
                     break;
-                case 'ecobee Sensor':
-                    $device_obj[] = new EcobeeSensor($device);
+                }
+                $status = $generic_device->status();
+                if(property_exists($status, 'switch') && array_key_exists('switch', $status->switch) && array_key_exists('value', $status->switch['switch'])) {
+                    $device_obj = new Outlet($device);
                     break;
-                default:
-                    // if 'ecobee Thermostat' is in the device name
-                    if(strpos($device['name'], 'ecobee Thermostat') !== false) {
-                        $device_obj[] = new Ecobee($device);
-                        break;
-                    }
-                    $status = $generic_device->status();
-                    if(property_exists($status, 'switch') && array_key_exists('switch', $status->switch) && array_key_exists('value', $status->switch['switch'])) {
-                        $device_obj[] = new Outlet($device);
-                        break;
-                    }
-                    $device_obj[] = $generic_device;
-                    break;
-            }
+                }
+                break;
         }
         return $device_obj;
     }
