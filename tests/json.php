@@ -29,13 +29,18 @@ if(count($devices) > 0)
     {
         if(method_exists($device, 'get_value'))
         {
-            $devices_array[] = array(
+            $device_basic_data = array(
                 'id' => $device->info()->deviceId,
                 'name' => $device->info()->name,
                 'label' => $device->info()->label,
                 'type' => $device->info()->type,
                 'value' => $device->get_value()
             );
+            if(method_exists($device, 'get_level'))
+            {
+                $device_basic_data['level'] = $device->get_level();
+            }
+            $devices_array[] = $device_basic_data;
         }
     }
 }

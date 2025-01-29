@@ -8,6 +8,7 @@ require __DIR__ . '/devices/tv.php';
 require __DIR__ . '/devices/ecobee.php';
 require __DIR__ . '/devices/ecobee_sensor.php';
 require __DIR__ . '/devices/outlet.php';
+require __DIR__ . '/devices/dimmer.php';
 
 interface Device {
 

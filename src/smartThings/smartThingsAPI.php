@@ -143,7 +143,12 @@ class SmartThingsAPI {
                 }
                 $status = $generic_device->status();
                 if(property_exists($status, 'switch') && array_key_exists('switch', $status->switch) && array_key_exists('value', $status->switch['switch'])) {
-                    $device_obj = new Outlet($device);
+                    if(property_exists($status, 'switchLevel') && array_key_exists('level', $status->switchLevel) && array_key_exists('value', $status->switchLevel['level'])) {
+                        $device_obj = new Dimmer($device);
+                    }
+                    else {
+                        $device_obj = new Outlet($device);
+                    }
                     break;
                 }
                 break;
