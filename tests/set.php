@@ -5,7 +5,12 @@ require __DIR__ . '/../vendor/autoload.php';
 # Create a Personal Access Token and add it below
 $userBearerToken = parse_ini_file(__DIR__ . '/../bearer.ini')['bearer'];
 $device_id = '2352eb81-0b1d-436c-9ad1-e8808c7dfdab';
-$value = "off";
+$value = 20;
+$what = "level";
+/*
+$value = "on;
+$what = "value";
+*/
 
 $smartAPI = new SmartThings\SmartThingsAPI($userBearerToken);
 try {
@@ -19,11 +24,22 @@ try {
 header('Content-Type: application/json; charset=utf-8');
 
 // set the value
-try {
-    $device->set_value($value);
-} catch (Exception $e) {
-    echo json_encode(Array("error_message" => $e->getMessage(), "error_code" => $e->getCode()));
-    exit;
+if($what == "value")
+{
+    try {
+        $device->set_value($value);
+    } catch (Exception $e) {
+        echo json_encode(Array("error_message" => $e->getMessage(), "error_code" => $e->getCode()));
+        exit;
+    }
+} else if($what == "level")
+{
+    try {
+        $device->set_level($value);
+    } catch (Exception $e) {
+        echo json_encode(Array("error_message" => $e->getMessage(), "error_code" => $e->getCode()));
+        exit;
+    }
 }
 
 try {
@@ -42,5 +58,9 @@ if(method_exists($device, 'get_value'))
         'type' => $device->info()->type,
         'value' => $device->get_value()
     );
+    if(method_exists($device, 'get_level'))
+    {
+        $device_details['level'] = $device->get_level();
+    }
     echo json_encode(Array("error_code" => 200, "error_message" => "", "message" => "Value set to " . $value, "device_details" => $device_details), JSON_PRETTY_PRINT);
 }

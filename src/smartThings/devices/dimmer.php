@@ -20,8 +20,9 @@ class Dimmer extends Outlet implements Device {
 
     public function set_level($value) {
         $request = [
-            'capability' => 'levelSwitch',
-            'command' => $value
+            'capability' => 'switchLevel',
+            'command' => 'setLevel',
+            'arguments' => [$value]
         ];
         $command_resp = parent::apiCall('POST', 'devices/' . $this->deviceId . '/commands', $request);
         return $this->validate_response($command_resp);
