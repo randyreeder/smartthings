@@ -13,15 +13,26 @@ class SmartThingsAPI {
 
     protected $cookieStorage;
     protected $bearer;
+    protected $access_token;
+    protected $refresh_token;
     protected $client;
     protected $request_body;
     protected $code_mapping;
 
-    function __construct(string $bearer) {
-        if (!$this->validateBearerToken($bearer)) {
-            throw new \Exception('Invalid bearer token', 401);
+    function __construct($auth_param, string $refresh_token = null) {
+        // Support both bearer token (legacy) and access_token/refresh_token (OAuth)
+        if (is_string($auth_param) && $refresh_token === null) {
+            // Legacy bearer token mode
+            if (!$this->validateBearerToken($auth_param)) {
+                throw new \Exception('Invalid bearer token', 401);
+            }
+            $this->bearer = $auth_param;
+        } else {
+            // OAuth mode with access_token and refresh_token
+            $this->access_token = $auth_param;
+            $this->refresh_token = $refresh_token;
+            $this->bearer = $this->access_token; // Use access_token as bearer
         }
-        $this->bearer = $bearer;
         $this->cookieStorage = new \GuzzleHttp\Cookie\CookieJar;
         $this->client = new \GuzzleHttp\Client([
             'base_uri' => 'https://api.smartthings.com/',
@@ -86,6 +97,82 @@ class SmartThingsAPI {
         if (!empty($bearer) && preg_match('/^\{?[a-zA-Z0-9]{8}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{12}\}?$/', $bearer)) {
             return true;
         }
+        return false;
+    }
+
+    /**
+     * Refresh the access token using the refresh token
+     */
+    public function refreshAccessToken(string $client_id, string $client_secret, string $config_file_path = null) : bool {
+        if (empty($this->refresh_token)) {
+            throw new \Exception('No refresh token available', 400);
+        }
+
+        $refresh_client = new \GuzzleHttp\Client([
+            'base_uri' => 'https://auth-global.api.smartthings.com/',
+            'timeout'  => 10.0,
+            'http_errors' => false
+        ]);
+
+        $response = $refresh_client->request('POST', 'oauth/token', [
+            'form_params' => [
+                'grant_type' => 'refresh_token',
+                'client_id' => $client_id,
+                'client_secret' => $client_secret,
+                'refresh_token' => $this->refresh_token
+            ]
+        ]);
+
+        $code = $response->getStatusCode();
+        if ($code === 200) {
+            $body = json_decode($response->getBody()->getContents(), true);
+            if (isset($body['access_token'])) {
+                $this->access_token = $body['access_token'];
+                $this->bearer = $this->access_token;
+                
+                // Update the authorization header
+                $this->request_body['headers']['Authorization'] = 'Bearer ' . $this->bearer;
+                
+                // Update refresh token if provided
+                if (isset($body['refresh_token'])) {
+                    $this->refresh_token = $body['refresh_token'];
+                }
+                
+                // Save tokens to file if path provided
+                if (!empty($config_file_path)) {
+                    $this->saveTokensToFile($config_file_path);
+                }
+                
+                return true;
+            }
+        }
+        
+        throw new \Exception('Failed to refresh access token', $code);
+    }
+
+    /**
+     * Get the current access token
+     */
+    public function getAccessToken() : ?string {
+        return $this->access_token;
+    }
+
+    /**
+     * Get the current refresh token
+     */
+    public function getRefreshToken() : ?string {
+        return $this->refresh_token;
+    }
+
+    /**
+     * Save current tokens to the configuration file
+     */    /**
+     * @deprecated This method is deprecated. OAuth tokens are now stored per-user in individual JSON files.
+     * Use the json.php endpoint OAuth flow instead: GET /json.php?setup=1&user_id=YOUR_UNIQUE_ID
+     */
+    public function saveTokensToFile(string $config_file_path) : bool {
+        // This method is deprecated - tokens are now stored per-user in JSON files
+        error_log("DEPRECATED: saveTokensToFile() is deprecated. Use per-user token storage instead.");
         return false;
     }
 
@@ -196,14 +283,37 @@ class SmartThingsAPI {
                 ]
             ];
         }
-        if ($request_type === 'POST') {
-            $call = $this->client->request('POST', $url, $request_body);
-        } else {
-            $call = $this->client->request('GET', $url, $request_body);
+        
+        $call = $this->makeRequest($request_type, $url, $request_body);
+        $code = $call->getStatusCode();
+        
+        // If we get a 401 and have a refresh token, try to refresh the access token
+        if ($code === 401 && !empty($this->refresh_token)) {
+            // Note: You'll need to store client_id and client_secret somewhere accessible
+            // For now, this is a placeholder - you'll need to implement token storage/retrieval
+            try {
+                // This would need client credentials to work properly
+                // $this->refreshAccessToken($client_id, $client_secret);
+                // $call = $this->makeRequest($request_type, $url, $request_body);
+                // $code = $call->getStatusCode();
+            } catch (\Exception $e) {
+                // Token refresh failed, continue with original error
+            }
         }
-        $code = $call->getStatusCode();      
+        
         $response = $call->getBody()->getContents();
         return ['code' => $code, 'response' => json_decode($response, true)];
+    }
+
+    /**
+     * Make the actual HTTP request
+     */
+    private function makeRequest(string $request_type, string $url, array $request_body) {
+        if ($request_type === 'POST') {
+            return $this->client->request('POST', $url, $request_body);
+        } else {
+            return $this->client->request('GET', $url, $request_body);
+        }
     }
 
 }
