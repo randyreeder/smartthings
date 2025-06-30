@@ -1,0 +1,4 @@
+[oauth_app]
+client_id = "your_smartthings_app_client_id"
+client_secret = "your_smartthings_app_client_secret"
+redirect_uri = "https://your-domain.com/path/to/json.php"

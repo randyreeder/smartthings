@@ -1,2 +1,13 @@
-*.txt
+# Configuration files with sensitive data
 *.ini
+!*.ini.example
+
+# User token storage (contains OAuth tokens)
+user_tokens/
+
+# Legacy files
+*.txt
+
+# IDE and system files
+.DS_Store
+.vscode/settings.json
