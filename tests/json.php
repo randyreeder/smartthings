@@ -29,7 +29,7 @@ require __DIR__ . '/../vendor/autoload.php';
 $oauth_config = parse_ini_file(__DIR__ . '/../oauth_tokens.ini', true);
 if (!$oauth_config || !isset($oauth_config['oauth_app'])) {
     http_response_code(500);
-    echo json_encode(['error' => 'OAuth configuration not found']);
+    echo json_encode(['error_code' => 500, 'error_message' => 'OAuth configuration not found', 'devices' => []]);
     exit;
 }
 
@@ -38,10 +38,17 @@ define('CLIENT_SECRET', $oauth_config['oauth_app']['client_secret']);
 define('REDIRECT_URI', $oauth_config['oauth_app']['redirect_uri']);
 
 // Simple token-based auth (Method 1)
-$user_token = $_GET['token'] ?? null;
-$user_id = $_GET['user_id'] ?? null;
-$api_key = $_GET['api_key'] ?? null;
-$setup_mode = $_GET['setup'] ?? null;
+$user_token = $_REQUEST['token'] ?? null;
+$user_id = $_REQUEST['user_id'] ?? null;
+$api_key = $_REQUEST['api_key'] ?? null;
+$setup_mode = $_GET['setup'] ?? null; // Setup mode stays GET-only
+
+// Log authentication attempts for debugging
+if ($user_token) {
+    error_log("json.php..token:" . substr($user_token, 0, 8) . "...");
+} elseif ($user_id) {
+    error_log("json.php..oauth user_id:" . $user_id);
+}
 
 // Method 1: Personal Access Token
 if ($user_token) {
@@ -64,15 +71,12 @@ if ($user_token) {
     
 } else {
     // No authentication method provided
+    error_log("json.php..missing token/credentials");
     header('HTTP/1.1 400 Bad Request');
     echo json_encode([
-        "error_message" => "Authentication required",
         "error_code" => 400,
-        "methods" => [
-            "personal_token" => "GET /json.php?token=YOUR_PERSONAL_ACCESS_TOKEN",
-            "oauth_setup" => "GET /json.php?setup=1&user_id=YOUR_UNIQUE_ID",
-            "oauth_usage" => "GET /json.php?user_id=YOUR_UNIQUE_ID&api_key=YOUR_API_KEY"
-        ],
+        "error_message" => "Authentication required. Use ?token=YOUR_TOKEN or ?user_id=ID&api_key=KEY",
+        "devices" => [],
         "help" => "For Personal Access Token: https://account.smartthings.com/tokens"
     ]);
     exit;
@@ -212,6 +216,7 @@ function loadUserTokens($user_id, $api_key = null) {
         echo json_encode([
             "error_message" => "User not authorized. Please complete setup first.",
             "error_code" => 401,
+            "devices" => [],
             "setup_url" => "/json.php?setup=1&user_id=" . urlencode($user_id)
         ]);
         exit;
@@ -225,6 +230,7 @@ function loadUserTokens($user_id, $api_key = null) {
         echo json_encode([
             "error_message" => "API key required for OAuth users.",
             "error_code" => 401,
+            "devices" => [],
             "help" => "Include api_key parameter: ?user_id=YOUR_ID&api_key=YOUR_KEY"
         ]);
         exit;
@@ -235,6 +241,7 @@ function loadUserTokens($user_id, $api_key = null) {
         echo json_encode([
             "error_message" => "Invalid API key for user.",
             "error_code" => 403,
+            "devices" => [],
             "help" => "Use the API key provided during OAuth setup"
         ]);
         exit;
@@ -269,8 +276,9 @@ function saveUserTokens($user_id, $access_token, $refresh_token) {
 try {
     $devices = $smartAPI->list_devices();
 } catch (Exception $e) {
+    error_log("json.php...." . $e->getMessage() . "..." . $e->getCode());
     header('HTTP/1.1 '.$e->getCode() . ' ' . $e->getMessage());
-    echo json_encode(Array("error_message" => $e->getMessage(), "error_code" => $e->getCode()));
+    echo json_encode(Array("error_message" => $e->getMessage(), "error_code" => $e->getCode(), "devices" => []));
     exit;
 }
 
@@ -304,4 +312,4 @@ if(count($devices) > 0)
         }
     }
 }
-echo json_encode($devices_array, JSON_PRETTY_PRINT);
+echo json_encode(Array("error_code" => 200, "error_message" => "", "devices" => $devices_array), JSON_PRETTY_PRINT);
