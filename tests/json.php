@@ -18,7 +18,26 @@ error_reporting(E_ERROR | E_PARSE);
  * GET /json.php?setup=1&user_id=THEIR_CHOSEN_ID
  */
 
-require __DIR__ . '/../vendor/autoload.php';
+// Try multiple paths for autoload.php (local vs production)
+$autoload_paths = [
+    __DIR__ . '/../../../git/smartthings/vendor/autoload.php', // Production path
+    __DIR__ . '/../vendor/autoload.php'           // Local development
+];
+
+$autoload_loaded = false;
+foreach ($autoload_paths as $path) {
+    if (file_exists($path)) {
+        require $path;
+        $autoload_loaded = true;
+        break;
+    }
+}
+
+if (!$autoload_loaded) {
+    http_response_code(500);
+    echo json_encode(['error_code' => 500, 'error_message' => 'Composer autoload not found', 'devices' => []]);
+    exit;
+}
 
 // Load OAuth app credentials from oauth_tokens.ini file
 // Expected structure:
