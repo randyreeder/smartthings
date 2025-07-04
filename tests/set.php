@@ -1,5 +1,19 @@
 <?php
 
+// Security: Prevent direct access from outside tests directory
+if (basename(__DIR__) !== 'tests') {
+    http_response_code(403);
+    exit('Access denied');
+}
+
+// Security: Validate that we're not being accessed via directory traversal
+$script_path = realpath($_SERVER['SCRIPT_FILENAME']);
+$tests_dir = realpath(__DIR__);
+if (strpos($script_path, $tests_dir) !== 0) {
+    http_response_code(403);
+    exit('Access denied');
+}
+
 // Disable PHP warnings and deprecation notices for clean JSON output
 error_reporting(E_ERROR | E_PARSE);
 
@@ -32,17 +46,27 @@ else {
     require_once __DIR__ . '/../../../git/smartthings/vendor/autoload.php'; // Production path
 }
 
-// Load OAuth app credentials from oauth_tokens.ini file
-$oauth_config = parse_ini_file(__DIR__ . '/../oauth_tokens.ini', true);
-if (!$oauth_config || !isset($oauth_config['oauth_app'])) {
-    http_response_code(500);
-    echo json_encode(['error_code' => 500, 'error_message' => 'OAuth configuration not found']);
-    exit;
+// Load OAuth app credentials - prefer environment variables for security
+$client_id = $_ENV['SMARTTHINGS_CLIENT_ID'] ?? null;
+$client_secret = $_ENV['SMARTTHINGS_CLIENT_SECRET'] ?? null;
+$redirect_uri = $_ENV['SMARTTHINGS_REDIRECT_URI'] ?? null;
+
+// Fallback to file-based config if environment variables not set
+if (!$client_id || !$client_secret || !$redirect_uri) {
+    $oauth_config = parse_ini_file(__DIR__ . '/../oauth_tokens.ini', true);
+    if (!$oauth_config || !isset($oauth_config['oauth_app'])) {
+        http_response_code(500);
+        echo json_encode(['error_code' => 500, 'error_message' => 'OAuth configuration not found']);
+        exit;
+    }
+    $client_id = $oauth_config['oauth_app']['client_id'];
+    $client_secret = $oauth_config['oauth_app']['client_secret'];
+    $redirect_uri = $oauth_config['oauth_app']['redirect_uri'];
 }
 
-define('CLIENT_ID', $oauth_config['oauth_app']['client_id']);
-define('CLIENT_SECRET', $oauth_config['oauth_app']['client_secret']);
-define('REDIRECT_URI', $oauth_config['oauth_app']['redirect_uri']);
+define('CLIENT_ID', $client_id);
+define('CLIENT_SECRET', $client_secret);
+define('REDIRECT_URI', $redirect_uri);
 
 // Authentication parameters
 $user_token = $_REQUEST['token'] ?? null;
@@ -195,4 +219,4 @@ echo json_encode([
     "error_message" => "", 
     "message" => "Device $device_id $what set to $value",
     "devices" => $devices_array
-], JSON_PRETTY_PRINT);     
+], JSON_PRETTY_PRINT);
