@@ -19,24 +19,15 @@ error_reporting(E_ERROR | E_PARSE);
  */
 
 // Try multiple paths for autoload.php (local vs production)
-$autoload_paths = [
-    __DIR__ . '/../../../git/smartthings/vendor/autoload.php', // Production path
-    __DIR__ . '/../vendor/autoload.php'           // Local development
-];
-
-$autoload_loaded = false;
-foreach ($autoload_paths as $path) {
-    if (file_exists($path)) {
-        require $path;
-        $autoload_loaded = true;
-        break;
-    }
+// Detect environment and load the appropriate Composer autoload file.
+// This allows the script to work both in local development and production environments.
+// Local
+if((strpos(__DIR__, '/Users/') === 0 || strpos(__DIR__, '/home/') === 0 && !strpos(__DIR__, '/home1/')))
+{
+    require_once __DIR__ . '/../vendor/autoload.php'; // Local path
 }
-
-if (!$autoload_loaded) {
-    http_response_code(500);
-    echo json_encode(['error_code' => 500, 'error_message' => 'Composer autoload not found', 'devices' => []]);
-    exit;
+else {
+    require_once __DIR__ . '/../../../git/smartthings/vendor/autoload.php'; // Production path
 }
 
 // Load OAuth app credentials from oauth_tokens.ini file
