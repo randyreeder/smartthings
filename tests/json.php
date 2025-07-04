@@ -32,13 +32,13 @@ $is_production = !((strpos(__DIR__, '/Users/') === 0 || strpos(__DIR__, '/home/'
 if ($is_production) {
     // Production paths (outside web root) - UPDATE THESE FOR YOUR SERVER
     $home_dir = getenv('HOME') ?: '/home1/rreeder';
-    $config_file = getenv('SMARTTHINGS_CONFIG_FILE') ?: $home_dir . '/smartthings_config/bearer.ini';
+    $config_file = getenv('SMARTTHINGS_CONFIG_FILE') ?: $home_dir . '/smartthings_config/oauth_tokens.ini';
     $tokens_dir = getenv('SMARTTHINGS_TOKEN_DIR') ?: $home_dir . '/smartthings_config/tokens';
     $autoload_file = getenv('SMARTTHINGS_VENDOR_PATH') ?: $home_dir . '/git/smartthings/vendor/autoload.php';
     $smartthings_src = getenv('SMARTTHINGS_SRC_PATH') ?: $home_dir . '/git/smartthings/src/smartThings';
 } else {
     // Local development paths (relative)
-    $config_file = __DIR__ . '/../bearer.ini';
+    $config_file = __DIR__ . '/../oauth_tokens.ini';
     $tokens_dir = __DIR__ . '/../user_tokens';
     $autoload_file = __DIR__ . '/../vendor/autoload.php';
     $smartthings_src = __DIR__ . '/../src/smartThings';

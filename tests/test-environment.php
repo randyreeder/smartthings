@@ -56,7 +56,7 @@ if ($is_production) {
 }
 
 if (file_exists($config_file)) {
-    echo "✅ <code>bearer.ini</code> exists at: <code>$config_file</code><br>";
+    echo "✅ <code>oauth_tokens.ini</code> exists at: <code>$config_file</code><br>";
     
     $config = parse_ini_file($config_file, true);
     if ($config && isset($config['oauth_app'])) {
@@ -68,7 +68,7 @@ if (file_exists($config_file)) {
         echo "❌ oauth_app section not found in config file<br>";
     }
 } else {
-    echo "❌ <code>bearer.ini</code> not found at: <code>$config_file</code><br>";
+    echo "❌ <code>oauth_tokens.ini</code> not found at: <code>$config_file</code><br>";
     echo "<p><em>This is normal if you haven't run the deployment script yet.</em></p>";
 }
 
@@ -85,6 +85,6 @@ echo "<h3>🔧 Configuration Methods Summary:</h3>";
 echo "<p><strong>Method 1 (Most Secure):</strong> Set system environment variables</p>";
 echo "<p><strong>Method 2 (Good):</strong> Set Apache environment variables in virtual host</p>";
 echo "<p><strong>Method 3 (Basic):</strong> Set environment variables in .htaccess (if supported)</p>";
-echo "<p><strong>Fallback:</strong> Use bearer.ini file outside web root (deploy-secure.sh does this)</p>";
+echo "<p><strong>Fallback:</strong> Use oauth_tokens.ini file outside web root (deploy-secure.sh does this)</p>";
 echo "<p><strong>Directory Structure:</strong> ~/smartthings_config/ and ~/git/smartthings/ (outside web root)</p>";
 ?>

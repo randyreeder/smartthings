@@ -7,9 +7,8 @@ This guide explains how to securely deploy the SmartThings API to a production w
 ```
 /home1/rreeder/                     # Your home directory (or ~/  )
 ├── smartthings_config/            # Configuration files (OUTSIDE web root)
-│   ├── bearer.ini                 # API credentials
-│   ├── userinfo.ini              # User configuration
-│   └── tokens/                   # OAuth tokens storage
+│   ├── oauth_tokens.ini          # OAuth app credentials
+│   └── tokens/                   # OAuth user token storage
 ├── git/smartthings/              # Git repository (OUTSIDE web root)
 │   ├── vendor/                   # Composer dependencies
 │   └── src/                      # SmartThings library source
@@ -68,7 +67,7 @@ For maximum security, use environment variables instead of config files:
 export SMARTTHINGS_CLIENT_ID="your_client_id"
 export SMARTTHINGS_CLIENT_SECRET="your_client_secret"
 export SMARTTHINGS_REDIRECT_URI="https://yourdomain.com/smartthings/json.php"
-export SMARTTHINGS_CONFIG_FILE="$HOME/smartthings_config/bearer.ini"
+export SMARTTHINGS_CONFIG_FILE="$HOME/smartthings_config/oauth_tokens.ini"
 export SMARTTHINGS_TOKEN_DIR="$HOME/smartthings_config/tokens"
 export SMARTTHINGS_VENDOR_PATH="$HOME/git/smartthings/vendor/autoload.php"
 export SMARTTHINGS_SRC_PATH="$HOME/git/smartthings/src/smartThings"
