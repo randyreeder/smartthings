@@ -11,10 +11,10 @@ The API supports two authentication methods:
 - **Best for**: Quick setup, personal use, testing
 - **Security**: Medium (single token for all access)
 
-### Method 2: OAuth with User ID + API Key (Secure)
-- **Usage**: `GET /json.php?user_id=YOUR_USER_ID&api_key=YOUR_API_KEY`
+### Method 2: OAuth with API Key (Secure)
+- **Usage**: `GET /json.php?api_key=YOUR_API_KEY`
 - **Best for**: Multi-user applications, production use, Garmin watches
-- **Security**: High (individual tokens per user, additional API key validation)
+- **Security**: High (individual tokens per user, API key validation)
 
 ---
 
@@ -80,19 +80,13 @@ redirect_uri = "your_app_redirect_uri"
    redirect_uri = "https://your-domain.com/path/to/json.php"
    ```
 
-2. **For Garmin Watch Users**: Use the OAuth setup flow:
+2. **For Users**: Use the OAuth setup flow:
    ```
    GET /json.php?setup=1&user_id=YOUR_UNIQUE_ID
    ```
    - Replace `YOUR_UNIQUE_ID` with a unique identifier (e.g., your email or username)
    - This will guide you through the OAuth authorization process
-   - You'll receive both a User ID and API Key for secure access
-
-3. **For Legacy/Testing**: Run the command-line OAuth generator:
-   ```bash
-   php get_oauth_tokens.php
-   ```
-   Follow the prompts to complete the OAuth flow manually.
+   - You'll receive an API Key for secure access (user_id is no longer needed for API calls)
 
 **Final Configuration:**
 Your `oauth_tokens.ini` will contain only the app credentials:
@@ -118,7 +112,7 @@ curl "http://localhost:8080/tests/json.php?token=YOUR_PERSONAL_ACCESS_TOKEN"
 
 **OAuth (after completing setup flow):**
 ```bash
-curl "http://localhost:8080/tests/json.php?user_id=YOUR_USER_ID&api_key=YOUR_API_KEY"
+curl "http://localhost:8080/tests/json.php?api_key=YOUR_API_KEY"
 ```
 
 You should see a JSON response with all your SmartThings devices.
@@ -130,11 +124,9 @@ You should see a JSON response with all your SmartThings devices.
 ### Error: "User not authorized" (401)
 - **OAuth**: Complete the OAuth setup flow: `GET /json.php?setup=1&user_id=YOUR_ID`
 
-### Error: "API key required" (401) 
-- **OAuth**: Include both user_id and api_key parameters in your request
-
-### Error: "Invalid API key" (403)
+### Error: "Invalid API key" (401/403) 
 - **OAuth**: Use the exact API key provided during OAuth setup
+- **OAuth**: Make sure you've completed the OAuth setup flow first
 
 ### Error: "Personal Token Invalid" (401)
 - **Personal Token**: Check that your token is valid and hasn't expired
@@ -159,7 +151,7 @@ You should see a JSON response with all your SmartThings devices.
 - **Never share your tokens publicly**
 - **Personal Access Tokens** don't expire but should be kept secure
 - **OAuth tokens** are stored per-user and can be refreshed automatically
-- **API keys** provide an additional security layer for OAuth users
+- **API keys** provide secure access without exposing user IDs
 - Store your `oauth_tokens.ini` file securely and don't commit it to version control
 
 ---
@@ -179,6 +171,6 @@ You should see a JSON response with all your SmartThings devices.
 ✅ Complete OAuth setup flow per user
 ```
 
-**Result:** Each user gets their own User ID and API Key pair for secure access.
+**Result:** Each user gets their own API Key for secure access.
 
 The Personal Access Token method is recommended for personal use, while OAuth is better for applications serving multiple users.

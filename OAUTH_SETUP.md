@@ -11,14 +11,14 @@
    - Get them from: https://developer.smartthings.com/
    - Update client_id, client_secret, and redirect_uri
 
-3. **For Garmin Watch Integration:**
+3. **For User Integration:**
    - Visit: `GET /json.php?setup=1&user_id=YOUR_UNIQUE_ID`
    - Follow the OAuth authorization flow
-   - Save your User ID and API Key
+   - Save your API Key (user_id is no longer needed for API calls)
 
 ## Authentication Methods:
 
 - **Personal Token**: `GET /json.php?token=YOUR_PAT`
-- **OAuth**: `GET /json.php?user_id=YOUR_ID&api_key=YOUR_KEY`
+- **OAuth**: `GET /json.php?api_key=YOUR_API_KEY`
 
 See `AUTHENTICATION_SETUP.md` for detailed instructions.
