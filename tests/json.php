@@ -34,8 +34,8 @@ if ($is_production) {
     $home_dir = getenv('HOME') ?: '/home1/rreeder';
     $config_file = getenv('SMARTTHINGS_CONFIG_FILE') ?: $home_dir . '/smartthings_config/bearer.ini';
     $tokens_dir = getenv('SMARTTHINGS_TOKEN_DIR') ?: $home_dir . '/smartthings_config/tokens';
-    $autoload_file = getenv('SMARTTHINGS_VENDOR_PATH') ?: $home_dir . '/smartthings_app/vendor/autoload.php';
-    $smartthings_src = getenv('SMARTTHINGS_SRC_PATH') ?: $home_dir . '/smartthings_app/src/smartThings';
+    $autoload_file = getenv('SMARTTHINGS_VENDOR_PATH') ?: $home_dir . '/git/smartthings/vendor/autoload.php';
+    $smartthings_src = getenv('SMARTTHINGS_SRC_PATH') ?: $home_dir . '/git/smartthings/src/smartThings';
 } else {
     // Local development paths (relative)
     $config_file = __DIR__ . '/../bearer.ini';

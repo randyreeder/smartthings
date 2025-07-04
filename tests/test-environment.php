@@ -86,5 +86,5 @@ echo "<p><strong>Method 1 (Most Secure):</strong> Set system environment variabl
 echo "<p><strong>Method 2 (Good):</strong> Set Apache environment variables in virtual host</p>";
 echo "<p><strong>Method 3 (Basic):</strong> Set environment variables in .htaccess (if supported)</p>";
 echo "<p><strong>Fallback:</strong> Use bearer.ini file outside web root (deploy-secure.sh does this)</p>";
-echo "<p><strong>Directory Structure:</strong> ~/smartthings_config/ and ~/smartthings_app/ (outside web root)</p>";
+echo "<p><strong>Directory Structure:</strong> ~/smartthings_config/ and ~/git/smartthings/ (outside web root)</p>";
 ?>
