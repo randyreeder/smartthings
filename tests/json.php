@@ -12,7 +12,7 @@ error_reporting(E_ERROR | E_PARSE);
  * GET /json.php?token=YOUR_PERSONAL_ACCESS_TOKEN
  * 
  * Method 2 - Secure OAuth (No PAT needed):
- * GET /json.php?user_id=UNIQUE_USER_ID&api_key=SECURE_API_KEY
+ * GET /json.php?api_key=SECURE_API_KEY
  * 
  * Users who don't want to create a PAT can get credentials by visiting:
  * GET /json.php?setup=1&user_id=THEIR_CHOSEN_ID
@@ -49,15 +49,15 @@ define('REDIRECT_URI', $oauth_config['oauth_app']['redirect_uri']);
 
 // Simple token-based auth (Method 1)
 $user_token = $_REQUEST['token'] ?? null;
-$user_id = $_REQUEST['user_id'] ?? null;
 $api_key = $_REQUEST['api_key'] ?? null;
 $setup_mode = $_GET['setup'] ?? null; // Setup mode stays GET-only
+$user_id = $_GET['user_id'] ?? null; // Only used for setup mode
 
 // Log authentication attempts for debugging
 if ($user_token) {
     error_log("json.php..token:" . substr($user_token, 0, 8) . "...");
-} elseif ($user_id) {
-    error_log("json.php..oauth user_id:" . $user_id);
+} elseif ($api_key) {
+    error_log("json.php..api_key:" . substr($api_key, 0, 8) . "...");
 }
 
 // Method 1: Personal Access Token
@@ -76,8 +76,8 @@ if ($user_token) {
     handleOAuthCallback($user_id, $_GET['code']);
     
 // Method 2: Use stored OAuth tokens
-} elseif ($user_id) {
-    $smartAPI = loadUserTokens($user_id, $api_key);
+} elseif ($api_key) {
+    $smartAPI = loadTokensByApiKey($api_key);
     
 } else {
     // No authentication method provided
@@ -85,7 +85,7 @@ if ($user_token) {
     header('HTTP/1.1 400 Bad Request');
     echo json_encode([
         "error_code" => 400,
-        "error_message" => "Authentication required. Use ?token=YOUR_TOKEN or ?user_id=ID&api_key=KEY",
+        "error_message" => "Authentication required. Use ?token=YOUR_TOKEN or ?api_key=YOUR_API_KEY",
         "devices" => [],
         "help" => "For Personal Access Token: https://account.smartthings.com/tokens"
     ]);
@@ -119,8 +119,8 @@ function handleOAuthSetup($user_id) {
        🔗 Authorize SmartThings Access
     </a>
     <p style='margin-top: 30px; color: #666; font-size: 14px;'>
-    After authorization, you'll be provided with both a User ID and API Key.<br>
-    Your Garmin watch will need both credentials to access your devices.
+    After authorization, you'll be provided with an API Key.<br>
+    Your Garmin watch will need only this API key to access your devices.
     </p>
 </body>
 </html>";
@@ -173,19 +173,18 @@ function handleOAuthCallback($user_id, $auth_code) {
     <p>Your SmartThings account has been successfully connected.</p>
     
     <div style='background: #d4edda; border: 1px solid #c3e6cb; padding: 20px; margin: 20px 0; border-radius: 5px;'>
-        <h3>🔐 Your Secure API Credentials:</h3>
-        <p><strong>User ID:</strong> <code>" . htmlspecialchars($user_id) . "</code></p>
+        <h3>🔐 Your Secure API Credential:</h3>
         <p><strong>API Key:</strong> <code style='word-break: break-all;'>" . htmlspecialchars($api_key) . "</code></p>
     </div>
     
     <p>Your Garmin watch can now access your devices using:</p>
     <code style='background: #f5f5f5; padding: 10px; display: block; margin: 10px 0; word-break: break-all;'>
-    GET /json.php?user_id=" . htmlspecialchars($user_id) . "&api_key=" . htmlspecialchars($api_key) . "
+    GET /json.php?api_key=" . htmlspecialchars($api_key) . "
     </code>
     
     <div style='background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; margin: 20px 0; border-radius: 5px;'>
         <strong>🔒 Important Security Notice:</strong><br>
-        Keep your API key secret! Anyone with your User ID AND API key can access your SmartThings devices.
+        Keep your API key secret! Anyone with your API key can access your SmartThings devices.
     </div>
 </body>
 </html>";
@@ -217,39 +216,28 @@ function handleOAuthCallback($user_id, $auth_code) {
     exit;
 }
 
-// Load stored tokens for a user with mandatory API key validation
-function loadUserTokens($user_id, $api_key = null) {
-    $tokens_file = __DIR__ . '/../user_tokens/' . hash('sha256', $user_id) . '.json';
+// Load stored tokens by API key
+function loadTokensByApiKey($api_key) {
+    $tokens_file = __DIR__ . '/../user_tokens/' . hash('sha256', $api_key) . '.json';
     
     if (!file_exists($tokens_file)) {
         header('HTTP/1.1 401 Unauthorized');
         echo json_encode([
-            "error_message" => "User not authorized. Please complete setup first.",
+            "error_message" => "Invalid API key. Please complete OAuth setup first.",
             "error_code" => 401,
             "devices" => [],
-            "setup_url" => "/json.php?setup=1&user_id=" . urlencode($user_id)
+            "setup_url" => "/json.php?setup=1&user_id=YOUR_CHOSEN_ID"
         ]);
         exit;
     }
     
     $tokens = json_decode(file_get_contents($tokens_file), true);
     
-    // API key is REQUIRED for all OAuth users
-    if ($api_key === null) {
-        header('HTTP/1.1 401 Unauthorized');
-        echo json_encode([
-            "error_message" => "API key required for OAuth users.",
-            "error_code" => 401,
-            "devices" => [],
-            "help" => "Include api_key parameter: ?user_id=YOUR_ID&api_key=YOUR_KEY"
-        ]);
-        exit;
-    }
-    
+    // Verify the API key matches (additional security check)
     if (!isset($tokens['api_key']) || $tokens['api_key'] !== $api_key) {
         header('HTTP/1.1 403 Forbidden');
         echo json_encode([
-            "error_message" => "Invalid API key for user.",
+            "error_message" => "Invalid API key.",
             "error_code" => 403,
             "devices" => [],
             "help" => "Use the API key provided during OAuth setup"
@@ -260,20 +248,21 @@ function loadUserTokens($user_id, $api_key = null) {
     return new SmartThings\SmartThingsAPI($tokens['access_token'], $tokens['refresh_token']);
 }
 
-// Save tokens for a user with API key generation
+// Save tokens for a user with API key as primary identifier
 function saveUserTokens($user_id, $access_token, $refresh_token) {
     $tokens_dir = __DIR__ . '/../user_tokens';
     if (!is_dir($tokens_dir)) {
         mkdir($tokens_dir, 0755, true);
     }
     
-    $tokens_file = $tokens_dir . '/' . hash('sha256', $user_id) . '.json';
-    
     // Generate a secure API key for this user
     $api_key = bin2hex(random_bytes(32)); // 64-character random string
     
+    // Use API key hash as filename instead of user_id hash
+    $tokens_file = $tokens_dir . '/' . hash('sha256', $api_key) . '.json';
+    
     $tokens = [
-        'user_id' => $user_id,
+        'user_id' => $user_id, // Keep for reference/debugging
         'api_key' => $api_key,
         'access_token' => $access_token,
         'refresh_token' => $refresh_token,

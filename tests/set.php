@@ -12,7 +12,7 @@ error_reporting(E_ERROR | E_PARSE);
  * GET/POST /set.php?token=YOUR_TOKEN&device_id=DEVICE_ID&value=VALUE
  * 
  * Method 2 - Secure OAuth (No PAT needed):
- * GET/POST /set.php?user_id=USER_ID&api_key=API_KEY&device_id=DEVICE_ID&value=VALUE
+ * GET/POST /set.php?api_key=API_KEY&device_id=DEVICE_ID&value=VALUE
  * 
  * Parameters:
  * - device_id: The SmartThings device ID to control
@@ -46,7 +46,6 @@ define('REDIRECT_URI', $oauth_config['oauth_app']['redirect_uri']);
 
 // Authentication parameters
 $user_token = $_REQUEST['token'] ?? null;
-$user_id = $_REQUEST['user_id'] ?? null;
 $api_key = $_REQUEST['api_key'] ?? null;
 
 // Control parameters
@@ -67,60 +66,50 @@ if (!$device_id || $value === null) {
 // Log control attempts for debugging
 if ($user_token) {
     error_log("set.php..token:" . substr($user_token, 0, 8) . "..device_id:" . $device_id . "..value:" . $value);
-} elseif ($user_id) {
-    error_log("set.php..oauth user_id:" . $user_id . "..device_id:" . $device_id . "..value:" . $value);
+} elseif ($api_key) {
+    error_log("set.php..api_key:" . substr($api_key, 0, 8) . "..device_id:" . $device_id . "..value:" . $value);
 }
 
-// Authentication - same logic as json.php
+// Authentication - simplified logic
 if ($user_token) {
     // Method 1: Personal Access Token
     $smartAPI = new SmartThings\SmartThingsAPI($user_token, $user_token);
-} elseif ($user_id) {
+} elseif ($api_key) {
     // Method 2: OAuth with stored tokens
-    $smartAPI = loadUserTokens($user_id, $api_key);
+    $smartAPI = loadTokensByApiKey($api_key);
 } else {
     // No authentication method provided
     error_log("set.php..missing token/credentials");
     http_response_code(400);
     echo json_encode([
         "error_code" => 400,
-        "error_message" => "Authentication required. Use ?token=YOUR_TOKEN or ?user_id=ID&api_key=KEY",
+        "error_message" => "Authentication required. Use ?token=YOUR_TOKEN or ?api_key=YOUR_API_KEY",
         "help" => "For Personal Access Token: https://account.smartthings.com/tokens"
     ]);
     exit;
 }
 
-// Load stored tokens for a user with mandatory API key validation
-function loadUserTokens($user_id, $api_key = null) {
-    $tokens_file = __DIR__ . '/../user_tokens/' . hash('sha256', $user_id) . '.json';
+// Load stored tokens by API key
+function loadTokensByApiKey($api_key) {
+    $tokens_file = __DIR__ . '/../user_tokens/' . hash('sha256', $api_key) . '.json';
     
     if (!file_exists($tokens_file)) {
         http_response_code(401);
         echo json_encode([
-            "error_message" => "User not authorized. Please complete setup first.",
+            "error_message" => "Invalid API key. Please complete OAuth setup first.",
             "error_code" => 401,
-            "setup_url" => "/json.php?setup=1&user_id=" . urlencode($user_id)
+            "setup_url" => "/json.php?setup=1&user_id=YOUR_CHOSEN_ID"
         ]);
         exit;
     }
     
     $tokens = json_decode(file_get_contents($tokens_file), true);
     
-    // API key is REQUIRED for all OAuth users
-    if ($api_key === null) {
-        http_response_code(401);
-        echo json_encode([
-            "error_message" => "API key required for OAuth users.",
-            "error_code" => 401,
-            "help" => "Include api_key parameter: ?user_id=YOUR_ID&api_key=YOUR_KEY"
-        ]);
-        exit;
-    }
-    
+    // Verify the API key matches (additional security check)
     if (!isset($tokens['api_key']) || $tokens['api_key'] !== $api_key) {
         http_response_code(403);
         echo json_encode([
-            "error_message" => "Invalid API key for user.",
+            "error_message" => "Invalid API key.",
             "error_code" => 403,
             "help" => "Use the API key provided during OAuth setup"
         ]);
