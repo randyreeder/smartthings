@@ -39,15 +39,25 @@ You have two options for authentication:
 7. Copy the generated token (it will look like: `6e1347cf-db1a-4901-bb81-174f5b1b05db`)
 
 **Configuration:**
-Update your `oauth_tokens.ini` file:
+
+**Option A: Environment Variables (Most Secure - Recommended)**
+```bash
+# Set these environment variables on your server
+export SMARTTHINGS_CLIENT_ID="your_actual_client_id"
+export SMARTTHINGS_CLIENT_SECRET="your_actual_client_secret"
+export SMARTTHINGS_REDIRECT_URI="https://yourserver.com/smartthings/api/json.php"
+```
+
+**Option B: Configuration File (Secure if outside web root)**
+Place `oauth_tokens.ini` outside your web-accessible directory:
 ```ini
 [oauth_app]
 client_id = "your_smartthings_app_client_id"
 client_secret = "your_smartthings_app_client_secret"
-redirect_uri = "your_app_redirect_uri"
+redirect_uri = "https://yourserver.com/smartthings/api/json.php"
 ```
 
-**Note:** Personal Access Tokens are used directly in API calls, not stored in the .ini file.
+**Note:** Personal Access Tokens are used directly in API calls, not stored in config files.
 
 ---
 
@@ -71,30 +81,34 @@ redirect_uri = "your_app_redirect_uri"
    - **Scopes**: Select `r:devices:*` and `x:devices:*`
 5. Note down your **Client ID** and **Client Secret**
 
-#### Step 2: Get OAuth Credentials
-1. Update the `oauth_tokens.ini` file with your app credentials:
-   ```ini
-   [oauth_app]
-   client_id = "your_app_client_id"
-   client_secret = "your_app_client_secret"
-   redirect_uri = "https://your-domain.com/path/to/json.php"
-   ```
+#### Step 2: Configure OAuth Credentials
 
-2. **For Users**: Use the OAuth setup flow:
-   ```
-   GET /json.php?setup=1
-   ```
-   - This will guide you through the OAuth authorization process
-   - You'll receive an API Key for secure access (no user ID needed for API calls)
+**Option A: Environment Variables (Most Secure - Recommended)**
+```bash
+# Set these on your server
+export SMARTTHINGS_CLIENT_ID="your_app_client_id"
+export SMARTTHINGS_CLIENT_SECRET="your_app_client_secret"
+export SMARTTHINGS_REDIRECT_URI="https://your-domain.com/smartthings/api/json.php"
+export SMARTTHINGS_TOKENS_DIR="/var/www/smartthings-config/user_tokens"
+```
 
-**Final Configuration:**
-Your `oauth_tokens.ini` will contain only the app credentials:
+**Option B: Configuration File (Secure)**
+Place `oauth_tokens.ini` outside your web root (e.g., `/var/www/smartthings-config/oauth_tokens.ini`):
 ```ini
 [oauth_app]
 client_id = "your_app_client_id"
 client_secret = "your_app_client_secret"
-redirect_uri = "https://your-domain.com/path/to/json.php"
+redirect_uri = "https://your-domain.com/smartthings/api/json.php"
 ```
+
+**For Users**: Use the OAuth setup flow:
+```
+GET /smartthings/api/json.php?setup=1
+```
+- This will guide you through the OAuth authorization process
+- You'll receive an API Key for secure access (no user ID needed for API calls)
+
+**Security Note:** With this setup, all sensitive files are stored outside the web-accessible directory, making them impossible to access via web browsers.
 
 **Note:** OAuth access tokens are stored per-user in individual JSON files for security, not in the shared .ini file.
 

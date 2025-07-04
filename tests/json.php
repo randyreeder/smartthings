@@ -1,15 +1,8 @@
 <?php
 
-// Security: Prevent direct access from outside tests directory
-if (basename(__DIR__) !== 'tests') {
-    http_response_code(403);
-    exit('Access denied');
-}
-
-// Security: Validate that we're not being accessed via directory traversal
-$script_path = realpath($_SERVER['SCRIPT_FILENAME']);
-$tests_dir = realpath(__DIR__);
-if (strpos($script_path, $tests_dir) !== 0) {
+// Security: Prevent direct web access to this script if accessed as a file
+if (basename($_SERVER['SCRIPT_NAME']) !== basename(__FILE__)) {
+    // This is being accessed through directory traversal or file inclusion
     http_response_code(403);
     exit('Access denied');
 }
@@ -32,34 +25,63 @@ error_reporting(E_ERROR | E_PARSE);
  * GET /json.php?setup=1
  */
 
-// Try multiple paths for autoload.php (local vs production)
-// Detect environment and load the appropriate Composer autoload file.
-// This allows the script to work both in local development and production environments.
-// Local
-if((strpos(__DIR__, '/Users/') === 0 || strpos(__DIR__, '/home/') === 0 && !strpos(__DIR__, '/home1/')))
-{
-    require_once __DIR__ . '/../vendor/autoload.php'; // Local path
+// Secure configuration: Use absolute paths outside web root for production
+// Environment variables (most secure) or absolute paths outside web root
+$is_production = !((strpos(__DIR__, '/Users/') === 0 || strpos(__DIR__, '/home/') === 0 && !strpos(__DIR__, '/home1/')));
+
+if ($is_production) {
+    // Production paths (outside web root) - UPDATE THESE FOR YOUR SERVER
+    $config_file = getenv('SMARTTHINGS_CONFIG_FILE') ?: '/var/www/config/bearer.ini';
+    $tokens_dir = getenv('SMARTTHINGS_TOKEN_DIR') ?: '/var/www/tokens';
+    $autoload_file = '/var/www/vendor/autoload.php';
+    $smartthings_src = '/var/www/src/smartThings';
+} else {
+    // Local development paths (relative)
+    $config_file = __DIR__ . '/../bearer.ini';
+    $tokens_dir = __DIR__ . '/../user_tokens';
+    $autoload_file = __DIR__ . '/../vendor/autoload.php';
+    $smartthings_src = __DIR__ . '/../src/smartThings';
 }
-else {
-    require_once __DIR__ . '/../../../git/smartthings/vendor/autoload.php'; // Production path
+
+// Load Composer autoload
+require_once $autoload_file;
+
+// Load SmartThings classes if not autoloaded
+if (!class_exists('SmartThings\SmartThingsAPI')) {
+    require_once $smartthings_src . '/smartThingsAPI.php';
+    require_once $smartthings_src . '/device_wrapper.php';
+    require_once $smartthings_src . '/locations_rooms.php';
 }
 
 // Load OAuth app credentials - prefer environment variables for security
-$client_id = $_ENV['SMARTTHINGS_CLIENT_ID'] ?? null;
-$client_secret = $_ENV['SMARTTHINGS_CLIENT_SECRET'] ?? null;
-$redirect_uri = $_ENV['SMARTTHINGS_REDIRECT_URI'] ?? null;
+$client_id = $_ENV['SMARTTHINGS_CLIENT_ID'] ?? $_SERVER['SMARTTHINGS_CLIENT_ID'] ?? null;
+$client_secret = $_ENV['SMARTTHINGS_CLIENT_SECRET'] ?? $_SERVER['SMARTTHINGS_CLIENT_SECRET'] ?? null;
+$redirect_uri = $_ENV['SMARTTHINGS_REDIRECT_URI'] ?? $_SERVER['SMARTTHINGS_REDIRECT_URI'] ?? null;
+
+// Override tokens directory from environment if specified
+$tokens_dir = $_ENV['SMARTTHINGS_TOKENS_DIR'] ?? $_SERVER['SMARTTHINGS_TOKENS_DIR'] ?? $tokens_dir;
 
 // Fallback to file-based config if environment variables not set
 if (!$client_id || !$client_secret || !$redirect_uri) {
-    $oauth_config = parse_ini_file(__DIR__ . '/../oauth_tokens.ini', true);
-    if (!$oauth_config || !isset($oauth_config['oauth_app'])) {
+    if (file_exists($config_file)) {
+        $oauth_config = parse_ini_file($config_file, true);
+        if ($oauth_config && isset($oauth_config['oauth_app'])) {
+            $client_id = $client_id ?: $oauth_config['oauth_app']['client_id'];
+            $client_secret = $client_secret ?: $oauth_config['oauth_app']['client_secret'];
+            $redirect_uri = $redirect_uri ?: $oauth_config['oauth_app']['redirect_uri'];
+        }
+    }
+    
+    // Still missing credentials?
+    if (!$client_id || !$client_secret || !$redirect_uri) {
         http_response_code(500);
-        echo json_encode(['error_code' => 500, 'error_message' => 'OAuth configuration not found']);
+        echo json_encode([
+            'error_code' => 500, 
+            'error_message' => 'OAuth configuration not found',
+            'help' => 'Set environment variables or ensure config file exists at: ' . $config_file
+        ]);
         exit;
     }
-    $client_id = $oauth_config['oauth_app']['client_id'];
-    $client_secret = $oauth_config['oauth_app']['client_secret'];
-    $redirect_uri = $oauth_config['oauth_app']['redirect_uri'];
 }
 
 define('CLIENT_ID', $client_id);
@@ -240,7 +262,8 @@ function handleOAuthCallback($user_id, $auth_code) {
 
 // Load stored tokens by API key
 function loadTokensByApiKey($api_key) {
-    $tokens_file = __DIR__ . '/../user_tokens/' . hash('sha256', $api_key) . '.json';
+    global $tokens_dir;
+    $tokens_file = $tokens_dir . '/' . hash('sha256', $api_key) . '.json';
     
     if (!file_exists($tokens_file)) {
         header('HTTP/1.1 401 Unauthorized');
@@ -272,7 +295,8 @@ function loadTokensByApiKey($api_key) {
 
 // Save tokens for a user with API key as primary identifier
 function saveUserTokens($user_id, $access_token, $refresh_token) {
-    $tokens_dir = __DIR__ . '/../user_tokens';
+    global $tokens_dir;
+    
     if (!is_dir($tokens_dir)) {
         mkdir($tokens_dir, 0755, true);
     }

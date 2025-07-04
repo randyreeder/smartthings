@@ -23,6 +23,29 @@ Installation using `composer`:
 
     composer require giannisftaras/smartthings
 
+## Production Deployment
+
+For production deployment with maximum security:
+
+1. **Run the secure deployment script**:
+   ```bash
+   sudo ./deploy-secure.sh
+   ```
+
+2. **Use environment variables for credentials** (recommended):
+   ```bash
+   export SMARTTHINGS_CLIENT_ID="your_client_id"
+   export SMARTTHINGS_CLIENT_SECRET="your_client_secret"
+   export SMARTTHINGS_REDIRECT_URI="https://yourdomain.com/smartthings/json.php"
+   ```
+
+3. **Or use config files outside web root**:
+   - Config files: `/var/www/config/bearer.ini`
+   - Token storage: `/var/www/tokens/`
+   - Source code: `/var/www/src/` and `/var/www/vendor/`
+
+See `SECURE_DEPLOYMENT.md` for complete deployment instructions.
+
 ## Authentication Methods
 
 ### Method 1: Personal Access Token (Simple)

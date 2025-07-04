@@ -1,51 +1,45 @@
 # SmartThings API Security Configuration
 
-## Current Structure (Less Secure)
-```
-/var/www/html/
-├── tests/
-│   ├── json.php      ← Web accessible
-│   └── set.php       ← Web accessible
-├── oauth_tokens.ini  ← VULNERABLE!
-├── bearer.ini        ← VULNERABLE!
-└── composer.json     ← VULNERABLE!
-```
+## Security Objective
+- ✅ **Allow PHP scripts** to access parent directories and configuration files
+- ❌ **Block web browsers** from directly viewing sensitive files like `.ini`, `.json`, etc.
+- ✅ **Maintain functionality** while protecting sensitive data
 
-## Recommended Structure (More Secure)
-```
-/var/www/
-├── config/
-│   ├── oauth_tokens.ini     ← Outside web root
-│   ├── bearer.ini           ← Outside web root
-│   └── user_tokens/         ← Outside web root
-├── html/
-│   └── tests/
-│       ├── json.php         ← Web accessible only
-│       └── set.php          ← Web accessible only
-└── vendor/                  ← Outside web root
+## Current Implementation
+
+### Web Server Protection (.htaccess files)
+```apache
+# In project root (.htaccess)
+<FilesMatch "\.(ini|json|log|env)$">
+    Require all denied      # Block web access to config files
+</FilesMatch>
+
+# In tests/ directory (.htaccess)  
+<FilesMatch "\.php$">
+    Require all granted     # Allow PHP execution
+</FilesMatch>
 ```
 
-## Implementation Steps
+### What's Protected vs Accessible
 
-1. **Move sensitive files outside web root:**
-   ```bash
-   mkdir -p /var/www/config
-   mv oauth_tokens.ini /var/www/config/
-   mv bearer.ini /var/www/config/
-   mv user_tokens/ /var/www/config/
-   ```
+**❌ Blocked from web browsers:**
+```
+https://yourserver.com/oauth_tokens.ini     → 403 Forbidden
+https://yourserver.com/bearer.ini           → 403 Forbidden  
+https://yourserver.com/user_tokens/          → 403 Forbidden
+https://yourserver.com/composer.json        → 403 Forbidden
+```
 
-2. **Update file paths in PHP:**
-   ```php
-   // Instead of: __DIR__ . '/../oauth_tokens.ini'
-   $config_path = '/var/www/config/oauth_tokens.ini';
-   
-   // Instead of: __DIR__ . '/../user_tokens/'
-   $tokens_dir = '/var/www/config/user_tokens/';
-   ```
+**✅ Accessible to PHP scripts:**
+```php
+// These work fine from your PHP code:
+parse_ini_file(__DIR__ . '/../oauth_tokens.ini');
+file_get_contents(__DIR__ . '/../user_tokens/token.json');
+require_once __DIR__ . '/../vendor/autoload.php';
+```
 
-3. **Set proper permissions:**
-   ```bash
-   chmod 600 /var/www/config/*.ini
-   chown www-data:www-data /var/www/config/
-   ```
+**✅ Accessible to web browsers:**
+```
+https://yourserver.com/tests/json.php       → Works
+https://yourserver.com/tests/set.php        → Works
+```
