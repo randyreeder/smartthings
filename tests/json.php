@@ -15,7 +15,7 @@ error_reporting(E_ERROR | E_PARSE);
  * GET /json.php?api_key=SECURE_API_KEY
  * 
  * Users who don't want to create a PAT can get credentials by visiting:
- * GET /json.php?setup=1&user_id=THEIR_CHOSEN_ID
+ * GET /json.php?setup=1
  */
 
 // Try multiple paths for autoload.php (local vs production)
@@ -51,7 +51,7 @@ define('REDIRECT_URI', $oauth_config['oauth_app']['redirect_uri']);
 $user_token = $_REQUEST['token'] ?? null;
 $api_key = $_REQUEST['api_key'] ?? null;
 $setup_mode = $_GET['setup'] ?? null; // Setup mode stays GET-only
-$user_id = $_GET['user_id'] ?? null; // Only used for setup mode
+$user_id = $_GET['user_id'] ?? null; // Optional for setup mode
 
 // Log authentication attempts for debugging
 if ($user_token) {
@@ -65,7 +65,11 @@ if ($user_token) {
     $smartAPI = new SmartThings\SmartThingsAPI($user_token, $user_token);
     
 // Method 2: OAuth setup mode
-} elseif ($setup_mode && $user_id) {
+} elseif ($setup_mode) {
+    // If no user_id provided, generate a random one
+    if (!$user_id) {
+        $user_id = 'user_' . bin2hex(random_bytes(8)) . '_' . time();
+    }
     handleOAuthSetup($user_id);
     
 // Method 2: OAuth callback
@@ -112,15 +116,14 @@ function handleOAuthSetup($user_id) {
 <head><title>SmartThings Authorization</title></head>
 <body style='font-family: Arial; max-width: 600px; margin: 50px auto; padding: 20px;'>
     <h2>SmartThings Authorization</h2>
-    <p>User ID: <strong>" . htmlspecialchars($user_id) . "</strong></p>
+    <p>Session ID: <strong>" . htmlspecialchars($user_id) . "</strong></p>
     <p>Click the button below to authorize access to your SmartThings devices:</p>
     <a href='" . htmlspecialchars($auth_url) . "' 
        style='background: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block;'>
        🔗 Authorize SmartThings Access
     </a>
-    <p style='margin-top: 30px; color: #666; font-size: 14px;'>
-    After authorization, you'll be provided with an API Key.<br>
-    Your Garmin watch will need only this API key to access your devices.
+    <p style='margin-top: 30px; font-size: 14px; color: #666;'>
+        <strong>Note:</strong> You'll receive an API key after authorization that you can use for all future API calls.
     </p>
 </body>
 </html>";
@@ -226,7 +229,7 @@ function loadTokensByApiKey($api_key) {
             "error_message" => "Invalid API key. Please complete OAuth setup first.",
             "error_code" => 401,
             "devices" => [],
-            "setup_url" => "/json.php?setup=1&user_id=YOUR_CHOSEN_ID"
+            "setup_url" => "/json.php?setup=1"
         ]);
         exit;
     }

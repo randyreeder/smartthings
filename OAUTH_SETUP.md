@@ -12,9 +12,9 @@
    - Update client_id, client_secret, and redirect_uri
 
 3. **For User Integration:**
-   - Visit: `GET /json.php?setup=1&user_id=YOUR_UNIQUE_ID`
+   - Visit: `GET /json.php?setup=1`
    - Follow the OAuth authorization flow
-   - Save your API Key (user_id is no longer needed for API calls)
+   - Save your API Key (no user ID needed for API calls)
 
 ## Authentication Methods:
 

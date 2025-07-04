@@ -58,7 +58,7 @@ $api_key = 'YOUR_API_KEY_FROM_OAUTH_SETUP';
 
 Users can get OAuth credentials by visiting:
 ```
-GET /json.php?setup=1&user_id=THEIR_CHOSEN_ID
+GET /json.php?setup=1
 ```
 
 After completing OAuth authorization, users receive an API key that works for all subsequent API calls.

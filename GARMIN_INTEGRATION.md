@@ -23,19 +23,18 @@ This guide explains how users can configure their Garmin watch app to access the
 - ✅ **API Key**: `abc123def456...` (provided after OAuth setup)
 
 **Setup Process:**
-1. **Choose a unique User ID** (e.g., your email, name + number, etc.)
-2. **Visit setup URL** in any web browser:
+1. **Visit setup URL** in any web browser:
    ```
-   https://yourserver.com/tests/json.php?setup=1&user_id=YOUR_CHOSEN_ID
+   https://yourserver.com/tests/json.php?setup=1
    ```
-3. **Click "Authorize SmartThings Access"**
-4. **Log in with your SmartThings credentials**
-5. **Grant permissions** to access your devices
-6. **Copy your API Key** from the success page
-7. **Done!** Your Garmin watch can now use your API Key
+2. **Click "Authorize SmartThings Access"**
+3. **Log in with your SmartThings credentials**
+4. **Grant permissions** to access your devices
+5. **Copy your API Key** from the success page
+6. **Done!** Your Garmin watch can now use your API Key
 
 **Example Setup:**
-- Visit: `https://yourserver.com/tests/json.php?setup=1&user_id=john_smith_123`
+- Visit: `https://yourserver.com/tests/json.php?setup=1`
 - After authorization, get your API Key: `abc123def456...`
 - Your watch calls: `https://yourserver.com/tests/json.php?api_key=abc123def456...`
 
@@ -85,7 +84,7 @@ GET https://yourserver.com/tests/json.php?api_key=abc123def456...
 
 ### Step 1: Initial Setup Request
 ```
-GET /json.php?setup=1&user_id=YOUR_CHOSEN_ID
+GET /json.php?setup=1
 ```
 Returns an HTML page with authorization button.
 
@@ -122,7 +121,7 @@ Returns JSON array of devices.
 {
   "error_message": "Invalid API key. Please complete OAuth setup first.",
   "error_code": 401,
-  "setup_url": "/json.php?setup=1&user_id=YOUR_CHOSEN_ID"
+  "setup_url": "/json.php?setup=1"
 }
 ```
 
@@ -146,7 +145,7 @@ Toybox.Communications.makeWebRequest(url, null, options, method(:onReceive));
 ### User Setup Instructions
 
 For **Method 1** users: Direct them to SmartThings token page
-For **Method 2** users: Direct them to your setup URL with their chosen user ID
+For **Method 2** users: Direct them to your setup URL: `/json.php?setup=1`
 
 ---
 

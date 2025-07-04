@@ -82,11 +82,10 @@ redirect_uri = "your_app_redirect_uri"
 
 2. **For Users**: Use the OAuth setup flow:
    ```
-   GET /json.php?setup=1&user_id=YOUR_UNIQUE_ID
+   GET /json.php?setup=1
    ```
-   - Replace `YOUR_UNIQUE_ID` with a unique identifier (e.g., your email or username)
    - This will guide you through the OAuth authorization process
-   - You'll receive an API Key for secure access (user_id is no longer needed for API calls)
+   - You'll receive an API Key for secure access (no user ID needed for API calls)
 
 **Final Configuration:**
 Your `oauth_tokens.ini` will contain only the app credentials:
@@ -122,7 +121,7 @@ You should see a JSON response with all your SmartThings devices.
 ## Troubleshooting
 
 ### Error: "User not authorized" (401)
-- **OAuth**: Complete the OAuth setup flow: `GET /json.php?setup=1&user_id=YOUR_ID`
+- **OAuth**: Complete the OAuth setup flow: `GET /json.php?setup=1`
 
 ### Error: "Invalid API key" (401/403) 
 - **OAuth**: Use the exact API key provided during OAuth setup

@@ -20,7 +20,7 @@ error_reporting(E_ERROR | E_PARSE);
  * - what: 'value' (default) or 'level' - what property to set
  * 
  * Users who don't have OAuth credentials can get them by visiting:
- * GET /json.php?setup=1&user_id=THEIR_CHOSEN_ID
+ * GET /json.php?setup=1
  */
 
 // Detect environment and load the appropriate Composer autoload file
@@ -98,7 +98,7 @@ function loadTokensByApiKey($api_key) {
         echo json_encode([
             "error_message" => "Invalid API key. Please complete OAuth setup first.",
             "error_code" => 401,
-            "setup_url" => "/json.php?setup=1&user_id=YOUR_CHOSEN_ID"
+            "setup_url" => "/json.php?setup=1"
         ]);
         exit;
     }
