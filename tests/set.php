@@ -1,16 +1,18 @@
 <?php
 
-require __DIR__ . '/../vendor/autoload.php';
+require __DIR__ . '/../../../git/smartthings/vendor/autoload.php';
 
-# Create a Personal Access Token and add it below
-$userBearerToken = parse_ini_file(__DIR__ . '/../bearer.ini')['bearer'];
-$device_id = '2352eb81-0b1d-436c-9ad1-e8808c7dfdab';
-$value = 20;
-$what = "level";
-/*
-$value = "on;
-$what = "value";
-*/
+$userBearerToken = $_REQUEST['token'];
+if(!$userBearerToken)
+{
+     error_log("set.php..missing token:");
+     echo json_encode(Array("error_message" => "Missing token", "error_code" => 401));
+     exit;
+} 
+$what = array_key_exists('what', $_REQUEST) ? $_REQUEST['what'] : 'value';
+$device_id = $_REQUEST['device_id'];
+$value = $_REQUEST['value'];
+error_log("set.php..token:".$userBearerToken.", device_id: ".$device_id.", value: ".$value);
 
 $smartAPI = new SmartThings\SmartThingsAPI($userBearerToken);
 try {
@@ -24,22 +26,23 @@ try {
 header('Content-Type: application/json; charset=utf-8');
 
 // set the value
-if($what == "value")
-{
-    try {
+try {
+    if($what == 'value')
+    {
         $device->set_value($value);
-    } catch (Exception $e) {
-        echo json_encode(Array("error_message" => $e->getMessage(), "error_code" => $e->getCode()));
+    }
+    else if($what == 'level')
+    {
+        $device->set_level(intval($value));
+    }
+    else
+    {
+        echo json_encode(Array("error_message" => "invalid what", "error_code" => 123));
         exit;
     }
-} else if($what == "level")
-{
-    try {
-        $device->set_level($value);
-    } catch (Exception $e) {
-        echo json_encode(Array("error_message" => $e->getMessage(), "error_code" => $e->getCode()));
-        exit;
-    }
+} catch (Exception $e) {
+    echo json_encode(Array("error_message" => $e->getMessage(), "error_code" => $e->getCode()));
+    exit;
 }
 
 try {
@@ -49,6 +52,7 @@ try {
     echo json_encode(Array("error_message" => $e->getMessage(), "error_code" => $e->getCode()));
     exit;
 }
+/*
 if(method_exists($device, 'get_value'))
 {
     $device_details = array(
@@ -58,9 +62,41 @@ if(method_exists($device, 'get_value'))
         'type' => $device->info()->type,
         'value' => $device->get_value()
     );
-    if(method_exists($device, 'get_level'))
-    {
-        $device_details['level'] = $device->get_level();
-    }
     echo json_encode(Array("error_code" => 200, "error_message" => "", "message" => "Value set to " . $value, "device_details" => $device_details), JSON_PRETTY_PRINT);
 }
+else {
+    echo json_encode(Array("error_code" => 200, "error_message" => "Not a switchable device"), JSON_PRETTY_PRINT);
+}
+ */
+
+try {
+    $devices = $smartAPI->list_devices();
+} catch (Exception $e) {
+    error_log("set.php....".$e->getMessage()."...".$e->getCode());
+    echo json_encode(Array("error_message" => $e->getMessage(), "error_code" => $e->getCode()));
+    exit;
+}   
+
+$devices_array = array();
+if(count($devices) > 0)
+{
+    foreach ($devices as $device)
+    {
+        if(method_exists($device, 'get_value'))
+        {
+            $device_details = array(
+                'id' => $device->info()->deviceId,
+                'name' => $device->info()->name,
+                'label' => $device->info()->label,
+                'type' => $device->info()->type,
+                'value' => $device->get_value()
+            );
+            if(method_exists($device, 'get_level'))
+            {
+                $device_details['level'] = $device->get_level();
+            }
+            $devices_array[] = $device_details;
+        }
+    }
+}
+echo json_encode(Array("error_code" => 200, "error_message" => "", "devices" => $devices_array), JSON_PRETTY_PRINT);     
