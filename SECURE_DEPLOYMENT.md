@@ -5,137 +5,117 @@ This guide explains how to securely deploy the SmartThings API to a production w
 ## Recommended Directory Structure
 
 ```
-/var/www/                           # Web server root
-├── html/                          # Public web root
-│   ├── smartthings/              # Your public API endpoints
-│   │   ├── json.php             # Main API endpoint
-│   │   ├── set.php              # Device control endpoint
-│   │   └── index.html           # Optional API documentation
-│   └── .htaccess                # Web server security rules
-├── config/                       # Configuration files (OUTSIDE web root)
-│   ├── bearer.ini               # API credentials
-│   └── userinfo.ini            # User configuration
-├── tokens/                       # OAuth tokens (OUTSIDE web root)
-├── vendor/                       # Composer dependencies (OUTSIDE web root)
-└── src/                         # Source code (OUTSIDE web root)
+/home1/rreeder/                     # Your home directory (or ~/  )
+├── smartthings_config/            # Configuration files (OUTSIDE web root)
+│   ├── bearer.ini                 # API credentials
+│   ├── userinfo.ini              # User configuration
+│   └── tokens/                   # OAuth tokens storage
+├── smartthings_app/              # Application files (OUTSIDE web root)
+│   ├── vendor/                   # Composer dependencies
+│   └── src/                      # SmartThings library source
+└── public_html/                  # Web root (or www/ or htdocs/)
+    └── smartthings/
+        ├── json.php             # Main API endpoint
+        ├── set.php              # Device control endpoint
+        └── index.html           # Optional API documentation
 ```
+
+**Note:** Paths are flexible and can be customized for your hosting environment.
 
 ## Deployment Steps
 
 ### 1. Set Up Directory Structure
 
+The deployment script will automatically detect your home directory and create the appropriate structure. You can customize paths using environment variables:
+
 ```bash
-# On your web server
-sudo mkdir -p /var/www/html/smartthings
-sudo mkdir -p /var/www/config
-sudo mkdir -p /var/www/tokens
-sudo chown -R www-data:www-data /var/www/
-sudo chmod -R 755 /var/www/
-sudo chmod 700 /var/www/config
-sudo chmod 700 /var/www/tokens
+# Optional: Customize paths (otherwise defaults will be used)
+export SMARTTHINGS_WEB_ROOT="public_html/smartthings"
+export SMARTTHINGS_CONFIG_DIR="$HOME/smartthings_config"
+export SMARTTHINGS_TOKEN_DIR="$HOME/smartthings_config/tokens"
+export SMARTTHINGS_APP_DIR="$HOME/smartthings_app"
+
+# Run the deployment script
+./deploy-secure.sh
 ```
 
-### 2. Copy Files to Secure Locations
+**Default paths used:**
+- Web root: `~/public_html/smartthings/` (or `/home1/username/public_html/smartthings/`)
+- Config: `~/smartthings_config/`
+- Tokens: `~/smartthings_config/tokens/`
+- App files: `~/smartthings_app/`
+
+### 2. Run Deployment Script
 
 ```bash
-# Copy public API endpoints to web root
-cp tests/json.php /var/www/html/smartthings/
-cp tests/set.php /var/www/html/smartthings/
-
-# Move sensitive files outside web root
-cp bearer.ini /var/www/config/
-cp userinfo.ini /var/www/config/
-cp -r vendor/ /var/www/
-cp -r src/ /var/www/
-
-# Create tokens directory with proper permissions
-sudo chown www-data:www-data /var/www/tokens
-sudo chmod 700 /var/www/tokens
+# Run the secure deployment script
+./deploy-secure.sh
 ```
 
-### 3. Update File Permissions
+This script will:
+- Create the secure directory structure
+- Copy API files to your web root
+- Move sensitive files outside the web root
+- Set proper file permissions
+- Display the final directory structure
+
+### 3. Configure Environment Variables (Optional but Recommended)
+
+For maximum security, use environment variables instead of config files:
 
 ```bash
-sudo chown -R www-data:www-data /var/www/
-sudo chmod 644 /var/www/html/smartthings/*.php
-sudo chmod 600 /var/www/config/*.ini
-sudo chmod -R 755 /var/www/vendor/
-sudo chmod -R 755 /var/www/src/
-```
-
-### 4. Configure Environment Variables (Recommended)
-
-Instead of using .ini files, use environment variables for maximum security:
-
-```bash
-# In your web server configuration or systemd environment file
-export SMARTTHINGS_API_TOKEN="your_api_token_here"
-export SMARTTHINGS_CLIENT_ID="your_client_id_here"
-export SMARTTHINGS_CLIENT_SECRET="your_client_secret_here"
+# Add to your shell profile (~/.bashrc, ~/.zshrc, etc.)
+export SMARTTHINGS_CLIENT_ID="your_client_id"
+export SMARTTHINGS_CLIENT_SECRET="your_client_secret"
 export SMARTTHINGS_REDIRECT_URI="https://yourdomain.com/smartthings/json.php"
-export SMARTTHINGS_TOKEN_DIR="/var/www/tokens"
+export SMARTTHINGS_CONFIG_FILE="$HOME/smartthings_config/bearer.ini"
+export SMARTTHINGS_TOKEN_DIR="$HOME/smartthings_config/tokens"
+export SMARTTHINGS_VENDOR_PATH="$HOME/smartthings_app/vendor/autoload.php"
+export SMARTTHINGS_SRC_PATH="$HOME/smartthings_app/src/smartThings"
 ```
-
-### 5. Web Server Security
-
-Add this to your Apache/Nginx configuration:
-
-#### Apache (.htaccess in web root)
-```apache
-# Deny access to sensitive directories if they accidentally end up in web root
-<Directory "*/config">
-    Require all denied
-</Directory>
-<Directory "*/tokens">
-    Require all denied
-</Directory>
-<Directory "*/vendor">
-    Require all denied
-</Directory>
-<Directory "*/src">
-    Require all denied
-</Directory>
-
-# Deny access to .ini files
-<Files "*.ini">
-    Require all denied
-</Files>
-```
-
-#### Nginx
-```nginx
-location ~ /(config|tokens|vendor|src)/ {
-    deny all;
-    return 404;
-}
-
-location ~ \.ini$ {
-    deny all;
-    return 404;
-}
-```
-
-## Security Benefits
-
-1. **Configuration files outside web root**: Prevents direct web access to credentials
-2. **Token storage outside web root**: OAuth tokens cannot be accessed via HTTP
-3. **Source code outside web root**: Protects your application logic
-4. **Proper file permissions**: Limits access to web server user only
-5. **Environment variables**: Most secure way to handle credentials
 
 ## Testing Deployment
 
-1. Verify API endpoints work: `https://yourdomain.com/smartthings/json.php`
-2. Verify config files are not accessible: `https://yourdomain.com/config/bearer.ini` should return 404
-3. Verify tokens directory is not accessible: `https://yourdomain.com/tokens/` should return 404
-4. Test OAuth flow and device control functionality
+1. **Verify API endpoints work**:
+   ```bash
+   curl "https://yourdomain.com/smartthings/json.php?token=YOUR_TOKEN"
+   ```
+
+2. **Test environment variable setup**:
+   ```bash
+   php tests/test-environment.php
+   ```
+
+3. **Verify sensitive files are not web accessible**:
+   - Try accessing config files directly (should fail)
+   - Try accessing token files directly (should fail)
 
 ## Maintenance
 
-- Regularly update dependencies: `composer update` in `/var/www/`
-- Monitor log files for security attempts
-- Keep credentials in environment variables when possible
-- Backup token files regularly (they're in `/var/www/tokens/`)
+- **Update dependencies**: Run `composer update` in your app directory
+- **Backup token files**: Regular backups of your tokens directory
+- **Monitor logs**: Check for unauthorized access attempts
+- **Update paths**: Modify environment variables if you change directory structure
+
+## Troubleshooting
+
+### Common Issues
+
+1. **"Config file not found"**: Check the path in the deployment script output
+2. **"Permission denied"**: Ensure proper file permissions (600 for .ini files, 700 for token directories)
+3. **"Class not found"**: Verify vendor/autoload.php path is correct
+4. **"Invalid API key"**: Complete OAuth setup flow first
+
+### Path Customization
+
+If you need different paths, you can customize them:
+
+```bash
+# Before running deploy-secure.sh
+export SMARTTHINGS_WEB_ROOT="www/api"
+export SMARTTHINGS_CONFIG_DIR="/home1/rreeder/config"
+export SMARTTHINGS_APP_DIR="/home1/rreeder/smartthings"
+```
 
 # Move application files  
 mv vendor /var/www/smartthings-app/

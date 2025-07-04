@@ -5,33 +5,50 @@
 
 set -e  # Exit on any error
 
-# Configuration
-WEB_ROOT="/var/www/html/smartthings"
-CONFIG_DIR="/var/www/config"
-TOKENS_DIR="/var/www/tokens"
-VENDOR_DIR="/var/www/vendor"
-SRC_DIR="/var/www/src"
-WEB_USER="www-data"
+# Configuration - UPDATE THESE PATHS FOR YOUR SERVER
+# Default paths (can be overridden with environment variables)
+DEFAULT_HOME_DIR="${HOME:-/home1/rreeder}"
+WEB_ROOT="${SMARTTHINGS_WEB_ROOT:-public_html/smartthings}"
+CONFIG_DIR="${SMARTTHINGS_CONFIG_DIR:-$DEFAULT_HOME_DIR/smartthings_config}"
+TOKENS_DIR="${SMARTTHINGS_TOKEN_DIR:-$DEFAULT_HOME_DIR/smartthings_config/tokens}"
+APP_DIR="${SMARTTHINGS_APP_DIR:-$DEFAULT_HOME_DIR/smartthings_app}"
+VENDOR_DIR="$APP_DIR/vendor"
+SRC_DIR="$APP_DIR/src"
 
 echo "🚀 Starting secure deployment of SmartThings API..."
+echo "📂 Using home directory: $DEFAULT_HOME_DIR"
+echo "🌐 Web root: $WEB_ROOT"
+echo "🔐 Config directory: $CONFIG_DIR"
+echo "🎫 Tokens directory: $TOKENS_DIR"
+echo "📦 App directory: $APP_DIR"
+echo ""
 
-# Check if running as root
-if [[ $EUID -ne 0 ]]; then
-   echo "❌ This script must be run as root (use sudo)"
-   exit 1
-fi
+# Function to create directory if it doesn't exist
+create_dir() {
+    local dir="$1"
+    local mode="$2"
+    if [ ! -d "$dir" ]; then
+        mkdir -p "$dir"
+        chmod "$mode" "$dir"
+        echo "   ✅ Created: $dir"
+    else
+        echo "   ✅ Exists: $dir"
+    fi
+}
 # Create directory structure
 echo "📁 Creating secure directory structure..."
-mkdir -p "$WEB_ROOT"
-mkdir -p "$CONFIG_DIR"
-mkdir -p "$TOKENS_DIR"
-mkdir -p "$VENDOR_DIR"
-mkdir -p "$SRC_DIR"
+create_dir "$WEB_ROOT" "755"
+create_dir "$CONFIG_DIR" "700"
+create_dir "$TOKENS_DIR" "700"
+create_dir "$APP_DIR" "755"
+create_dir "$VENDOR_DIR" "755"
+create_dir "$SRC_DIR" "755"
 
 # Copy public API files to web root
 echo "📄 Copying public API files..."
 if [ -f "tests/json.php" ]; then
     cp tests/json.php "$WEB_ROOT/"
+    chmod 644 "$WEB_ROOT/json.php"
     echo "   ✅ json.php copied to web root"
 else
     echo "   ⚠️  tests/json.php not found"
@@ -39,6 +56,7 @@ fi
 
 if [ -f "tests/set.php" ]; then
     cp tests/set.php "$WEB_ROOT/"
+    chmod 644 "$WEB_ROOT/set.php"
     echo "   ✅ set.php copied to web root"
 else
     echo "   ⚠️  tests/set.php not found"
@@ -48,6 +66,7 @@ fi
 echo "🔐 Moving sensitive configuration files..."
 if [ -f "bearer.ini" ]; then
     cp bearer.ini "$CONFIG_DIR/"
+    chmod 600 "$CONFIG_DIR/bearer.ini"
     echo "   ✅ bearer.ini moved to secure location"
 else
     echo "   ⚠️  bearer.ini not found"
@@ -55,12 +74,14 @@ fi
 
 if [ -f "userinfo.ini" ]; then
     cp userinfo.ini "$CONFIG_DIR/"
+    chmod 600 "$CONFIG_DIR/userinfo.ini"
     echo "   ✅ userinfo.ini moved to secure location"
 else
     echo "   ⚠️  userinfo.ini not found"
 fi
 
 # Move vendor directory
+echo "📦 Moving vendor directory..."
 if [ -d "vendor" ]; then
     cp -r vendor/* "$VENDOR_DIR/"
     echo "   ✅ vendor directory moved to secure location"
@@ -69,6 +90,7 @@ else
 fi
 
 # Move src directory
+echo "📚 Moving src directory..."
 if [ -d "src" ]; then
     cp -r src/* "$SRC_DIR/"
     echo "   ✅ src directory moved to secure location"
@@ -76,68 +98,25 @@ else
     echo "   ⚠️  src directory not found"
 fi
 
-# Set proper ownership
-echo "👤 Setting proper file ownership..."
-chown -R "$WEB_USER:$WEB_USER" /var/www/
-echo "   ✅ Ownership set to $WEB_USER"
-
-# Set proper permissions
-echo "🔒 Setting secure file permissions..."
-chmod 755 /var/www/
-chmod 755 /var/www/html/
-chmod 755 "$WEB_ROOT"
-chmod 644 "$WEB_ROOT"/*.php 2>/dev/null || true
-chmod 700 "$CONFIG_DIR"
-chmod 600 "$CONFIG_DIR"/*.ini 2>/dev/null || true
-chmod 700 "$TOKENS_DIR"
-chmod -R 755 "$VENDOR_DIR"
-chmod -R 755 "$SRC_DIR"
-echo "   ✅ Permissions set securely"
-
-# Create .htaccess for additional security
-echo "🛡️  Creating web server security rules..."
-cat > /var/www/html/.htaccess << 'EOF'
-# SmartThings API Security Rules
-# Deny access to sensitive directories if they accidentally end up in web root
-<Directory "*/config">
-    Require all denied
-</Directory>
-<Directory "*/tokens">
-    Require all denied
-</Directory>
-<Directory "*/vendor">
-    Require all denied
-</Directory>
-<Directory "*/src">
-    Require all denied
-</Directory>
-
-# Deny access to .ini files
-<Files "*.ini">
-    Require all denied
-</Files>
-
-# Deny access to .json token files
-<Files "*.json">
-    Require all denied
-</Files>
-EOF
-
-echo "   ✅ Security rules created"
-
-echo ""
 echo "🎉 Secure deployment completed successfully!"
 echo ""
+echo "📋 Directory structure created:"
+echo "   🌐 Web root: $WEB_ROOT"
+echo "   🔐 Config: $CONFIG_DIR"
+echo "   🎫 Tokens: $TOKENS_DIR"
+echo "   📦 App: $APP_DIR"
+echo ""
 echo "📋 Next steps:"
-echo "1. Update your web server configuration to use the new paths"
-echo "2. Test the API endpoints:"
+echo "1. Test the API endpoints:"
 echo "   - Main API: https://yourdomain.com/smartthings/json.php"
 echo "   - Device control: https://yourdomain.com/smartthings/set.php"
-echo "3. Verify sensitive files are not web accessible:"
-echo "   - Config files: https://yourdomain.com/config/ (should return 404)"
-echo "   - Tokens: https://yourdomain.com/tokens/ (should return 404)"
-echo "4. Consider using environment variables for credentials (see ENVIRONMENT_VARIABLES.md)"
-echo "5. Update your Garmin app URLs if needed"
+echo "2. Verify sensitive files are not web accessible"
+echo "3. Consider using environment variables for credentials:"
+echo "   export SMARTTHINGS_CONFIG_FILE=\"$CONFIG_DIR/bearer.ini\""
+echo "   export SMARTTHINGS_TOKEN_DIR=\"$TOKENS_DIR\""
+echo "   export SMARTTHINGS_VENDOR_PATH=\"$VENDOR_DIR/autoload.php\""
+echo "   export SMARTTHINGS_SRC_PATH=\"$SRC_DIR/smartThings\""
+echo "4. Update your Garmin app URLs if needed"
 echo ""
 echo "🔐 Security status: All sensitive files are now outside the web root!"
 
