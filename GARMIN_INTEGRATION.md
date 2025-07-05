@@ -7,7 +7,7 @@ This guide explains how users can configure their Garmin watch app to access the
 ### Method 1: Personal Access Token (Simple, but requires creating a token)
 
 **What to enter in your Garmin watch app settings:**
-- ✅ **Server URL**: `https://yourserver.com/tests/json.php`
+- ✅ **Server URL**: `https://yourserver.com/weather/smartthings/json.php`
 - ✅ **Token**: `6e1347cf-db1a-4901-bb81-174f5b1b05db` (your personal token)
 
 **How to get your Personal Access Token:**
@@ -19,13 +19,13 @@ This guide explains how users can configure their Garmin watch app to access the
 ### Method 2: OAuth Authorization (No token creation needed)
 
 **What to enter in your Garmin watch app settings:**
-- ✅ **Server URL**: `https://yourserver.com/tests/json.php`
+- ✅ **Server URL**: `https://yourserver.com/weather/smartthings/json.php`
 - ✅ **API Key**: `abc123def456...` (provided after OAuth setup)
 
 **Setup Process:**
 1. **Visit setup URL** in any web browser:
    ```
-   https://yourserver.com/tests/json.php?setup=1
+   https://yourserver.com/weather/smartthings/json.php?setup=1
    ```
 2. **Click "Authorize SmartThings Access"**
 3. **Log in with your SmartThings credentials**
@@ -34,9 +34,9 @@ This guide explains how users can configure their Garmin watch app to access the
 6. **Done!** Your Garmin watch can now use your API Key
 
 **Example Setup:**
-- Visit: `https://yourserver.com/tests/json.php?setup=1`
+- Visit: `https://yourserver.com/weather/smartthings/json.php?setup=1`
 - After authorization, get your API Key: `abc123def456...`
-- Your watch calls: `https://yourserver.com/tests/json.php?api_key=abc123def456...`
+- Your watch calls: `https://yourserver.com/weather/smartthings/json.php?api_key=abc123def456...`
 
 ---
 
@@ -57,12 +57,12 @@ This guide explains how users can configure their Garmin watch app to access the
 
 ### Method 1: Personal Token
 ```
-GET https://yourserver.com/tests/json.php?token=6e1347cf-db1a-4901-bb81-174f5b1b05db
+GET https://yourserver.com/weather/smartthings/json.php?token=6e1347cf-db1a-4901-bb81-174f5b1b05db
 ```
 
 ### Method 2: OAuth API Key
 ```
-GET https://yourserver.com/tests/json.php?api_key=abc123def456...
+GET https://yourserver.com/weather/smartthings/json.php?api_key=abc123def456...
 ```
 
 **Both methods return the same JSON response:**
@@ -111,7 +111,7 @@ Returns JSON array of devices.
   "error_code": 400,
   "methods": {
     "personal_token": "GET /json.php?token=YOUR_PERSONAL_ACCESS_TOKEN",
-    "oauth_setup": "GET /json.php?setup=1&user_id=YOUR_UNIQUE_ID"
+    "oauth_setup": "GET /json.php?setup=1"
   }
 }
 ```
@@ -133,10 +133,10 @@ Returns JSON array of devices.
 
 ```javascript
 // Method 1: Personal Token
-var url1 = "https://yourserver.com/tests/json.php?token=" + userToken;
+var url1 = "https://yourserver.com/weather/smartthings/json.php?token=" + userToken;
 
 // Method 2: OAuth API Key  
-var url2 = "https://yourserver.com/tests/json.php?api_key=" + apiKey;
+var url2 = "https://yourserver.com/weather/smartthings/json.php?api_key=" + apiKey;
 
 // Same request handling for both methods
 Toybox.Communications.makeWebRequest(url, null, options, method(:onReceive));
