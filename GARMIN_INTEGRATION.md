@@ -226,37 +226,75 @@ GET https://yourserver.com/weather/smartthings/json.php?api_key=abc123def456789a
 
 ## 🔧 **OAuth Setup Flow Details (Method 2)**
 
-### Step 1: Initial Setup Request
+### 🆕 **Seamless Flow (Watch App Polling)**
+
+#### Step 1: Initial Setup Request
 ```
 GET /weather/smartthings/json.php?setup=1
 ```
 - Server generates random `user_id` like: `user_a1b2c3d4_1735948800`
-- Returns HTML page with authorization button
-- Session ID displayed for reference
+- Returns HTML page with authorization button and polling instructions
+- **Watch app extracts Session ID** from the page content
 
-### Step 2: SmartThings Authorization  
+#### Step 2: Watch App Starts Polling
+```
+GET /weather/smartthings/json.php?poll=user_a1b2c3d4_1735948800
+```
+- Watch app polls every 5-10 seconds
+- Server responds with `{"status": "pending"}` while waiting
+- Session expires after 1 hour for security
+
+#### Step 3: User Completes SmartThings Authorization  
 - User clicks button → Redirected to SmartThings OAuth
 - User logs in → Grants device permissions
 - SmartThings redirects back with authorization code
 
-### Step 3: Token Exchange
+#### Step 4: Server Token Exchange & Storage
 - Server exchanges authorization code for OAuth tokens
 - Generates 64-character random API key
 - Stores tokens in file: `/tokens/SHA256(api_key).json`
+- **Updates session file with API key for polling**
 
-### Step 4: Success Page
-- Displays the 64-character API key to user
-- User copies this key into their Garmin watch app
-- Key format: `abc123def456789abcdef123456789abcdef123456789abcdef123456789abcdef`
+#### Step 5: Watch App Receives API Key
+```
+GET /weather/smartthings/json.php?poll=user_a1b2c3d4_1735948800
+```
+**Server responds with:**
+```json
+{
+  "status": "success",
+  "api_key": "abc123def456789abcdef123456789abcdef123456789abcdef123456789abcdef",
+  "message": "OAuth setup completed successfully"
+}
+```
+- **Watch app automatically saves API key**
+- **Session file deleted for security**
+- **Setup complete - no manual copying needed!**
 
-### Step 5: Normal Usage
+#### Step 6: Normal API Usage
 ```
 GET /weather/smartthings/json.php?api_key=abc123def456789abcdef123456789abcdef123456789abcdef123456789abcdef
 ```
+- Watch app uses the automatically received API key
 - Server calculates `SHA256(api_key)` to find token file
 - Loads OAuth tokens from storage
 - Makes authenticated SmartThings API call
 - Returns device list as JSON
+
+### 📱 **Traditional Manual Flow (Browser Only)**
+
+#### Step 1-3: Same as Seamless Flow
+(Initial setup, user authorization, token exchange)
+
+#### Step 4: Manual Success Page
+- Displays the 64-character API key to user
+- User manually copies key: `abc123def456789abcdef123456789abcdef123456789abcdef123456789abcdef`
+- User manually enters key into Garmin watch app settings
+
+#### Step 5: Manual Configuration
+- User pastes API key into watch app
+- Watch app validates 64-character format
+- Normal API usage begins
 
 ---
 
