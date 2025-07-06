@@ -111,6 +111,12 @@ if ($user_token) {
     
 // Method 2: OAuth setup mode
 } elseif ($setup_mode) {
+    // Check if this is a JSON request for session ID
+    if (isset($_GET['format']) && $_GET['format'] === 'json') {
+        handleSetupJSON($user_id);
+        exit;
+    }
+    
     // If no user_id provided, generate a random one
     if (!$user_id) {
         $user_id = 'user_' . bin2hex(random_bytes(8)) . '_' . time();
@@ -186,6 +192,59 @@ function handleOAuthSetup($user_id) {
 </body>
 </html>";
     exit;
+}
+
+// Handle JSON setup request for watch apps
+function handleSetupJSON($user_id) {
+    global $tokens_dir;
+    
+    // If no user_id provided, generate a random one
+    if (!$user_id) {
+        $user_id = 'user_' . bin2hex(random_bytes(8)) . '_' . time();
+    }
+    
+    // Validate user_id format for security
+    if (!preg_match('/^user_[a-f0-9]{16}_\d{10}$/', $user_id)) {
+        header('Content-Type: application/json');
+        http_response_code(400);
+        echo json_encode([
+            'error' => 'Invalid session_id format. Must be: user_[16hex]_[timestamp]',
+            'example' => 'user_a1b2c3d4e5f6g7h8_1735948800'
+        ]);
+        exit;
+    }
+    
+    // Create session file immediately
+    if (!is_dir($tokens_dir)) {
+        mkdir($tokens_dir, 0755, true);
+    }
+    
+    $session_file = $tokens_dir . '/session_' . hash('sha256', $user_id) . '.json';
+    $session_data = [
+        'user_id' => $user_id,
+        'api_key' => null, // Will be filled when OAuth completes
+        'created' => time(),
+        'expires' => time() + 3600 // 1 hour expiry
+    ];
+    file_put_contents($session_file, json_encode($session_data));
+    
+    // Return session info and auth URL
+    $auth_url = 'https://api.smartthings.com/oauth/authorize?' . http_build_query([
+        'response_type' => 'code',
+        'client_id' => CLIENT_ID,
+        'redirect_uri' => REDIRECT_URI,
+        'scope' => 'r:devices:* x:devices:*',
+        'state' => base64_encode(json_encode(['user_id' => $user_id, 'random' => bin2hex(random_bytes(8))]))
+    ]);
+    
+    header('Content-Type: application/json');
+    echo json_encode([
+        'session_id' => $user_id,
+        'auth_url' => $auth_url,
+        'poll_url' => REDIRECT_URI . '?poll=' . urlencode($user_id),
+        'expires_in' => 3600,
+        'instructions' => 'Open auth_url in browser, then poll poll_url every 5-10 seconds'
+    ]);
 }
 
 // Handle OAuth callback

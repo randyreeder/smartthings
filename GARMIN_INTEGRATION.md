@@ -122,12 +122,49 @@ GET /weather/smartthings/json.php?poll=user_a1b2c3d4_1735948800
 
 The polling API allows watch apps to automatically receive the API key without user copy/paste:
 
-#### Setup Flow:
-1. **Watch opens browser** to setup URL
-2. **Watch extracts Session ID** from the setup page
-3. **Watch starts polling** every 5-10 seconds
-4. **User completes OAuth** in browser  
+#### Setup Flow Options:
+
+**🎯 Option 1: Watch App Gets Session ID via JSON API**
+1. **Watch calls JSON setup endpoint** to get Session ID
+2. **Watch opens browser** to auth URL  
+3. **Watch starts polling** using Session ID
+4. **User completes OAuth** in browser
 5. **Watch automatically receives API key** and stops polling
+
+**📱 Option 2: Watch App Provides Own Session ID**  
+1. **Watch generates Session ID** (format: `user_[16hex]_[timestamp]`)
+2. **Watch calls JSON setup endpoint** with custom Session ID
+3. **Watch opens browser** to auth URL
+4. **Watch starts polling** using its own Session ID
+5. **User completes OAuth** in browser
+6. **Watch automatically receives API key** and stops polling
+
+**🌐 Option 3: Browser-Based (Manual Session ID)**
+1. **User opens browser** to setup URL
+2. **User notes Session ID** from page
+3. **User enters Session ID** into watch app  
+4. **Watch starts polling** using entered Session ID
+5. **User completes OAuth** in browser
+6. **Watch automatically receives API key** and stops polling
+
+#### API Endpoints:
+
+**Get Session ID (JSON):**
+```
+GET /weather/smartthings/json.php?setup=1&format=json
+GET /weather/smartthings/json.php?setup=1&format=json&user_id=custom_session_id
+```
+
+**Response:**
+```json
+{
+  "session_id": "user_a1b2c3d4_1735948800",
+  "auth_url": "https://api.smartthings.com/oauth/authorize?...",
+  "poll_url": "https://yourserver.com/weather/smartthings/json.php?poll=user_a1b2c3d4_1735948800",
+  "expires_in": 3600,
+  "instructions": "Open auth_url in browser, then poll poll_url every 5-10 seconds"
+}
+```
 
 #### Polling Responses:
 
@@ -228,58 +265,60 @@ GET https://yourserver.com/weather/smartthings/json.php?api_key=abc123def456789a
 
 ### 🆕 **Seamless Flow (Watch App Polling)**
 
-#### Step 1: Initial Setup Request
-```
-GET /weather/smartthings/json.php?setup=1
-```
-- Server generates random `user_id` like: `user_a1b2c3d4_1735948800`
-- Returns HTML page with authorization button and polling instructions
-- **Watch app extracts Session ID** from the page content
+#### 🎯 **Method A: Server-Generated Session ID**
 
-#### Step 2: Watch App Starts Polling
+##### Step 1: Watch App Gets Session ID
 ```
-GET /weather/smartthings/json.php?poll=user_a1b2c3d4_1735948800
-```
-- Watch app polls every 5-10 seconds
-- Server responds with `{"status": "pending"}` while waiting
-- Session expires after 1 hour for security
-
-#### Step 3: User Completes SmartThings Authorization  
-- User clicks button → Redirected to SmartThings OAuth
-- User logs in → Grants device permissions
-- SmartThings redirects back with authorization code
-
-#### Step 4: Server Token Exchange & Storage
-- Server exchanges authorization code for OAuth tokens
-- Generates 64-character random API key
-- Stores tokens in file: `/tokens/SHA256(api_key).json`
-- **Updates session file with API key for polling**
-
-#### Step 5: Watch App Receives API Key
-```
-GET /weather/smartthings/json.php?poll=user_a1b2c3d4_1735948800
+GET /weather/smartthings/json.php?setup=1&format=json
 ```
 **Server responds with:**
 ```json
 {
-  "status": "success",
-  "api_key": "abc123def456789abcdef123456789abcdef123456789abcdef123456789abcdef",
-  "message": "OAuth setup completed successfully"
+  "session_id": "user_a1b2c3d4_1735948800",
+  "auth_url": "https://api.smartthings.com/oauth/authorize?...",
+  "poll_url": "https://yourserver.com/weather/smartthings/json.php?poll=user_a1b2c3d4_1735948800",
+  "expires_in": 3600
 }
 ```
-- **Watch app automatically saves API key**
-- **Session file deleted for security**
-- **Setup complete - no manual copying needed!**
 
-#### Step 6: Normal API Usage
+##### Step 2: Watch App Opens Browser & Starts Polling
+- **Watch opens browser** to `auth_url` 
+- **Watch starts polling** `poll_url` every 5-10 seconds
+- **Server responds** with `{"status": "pending"}` while waiting
+
+##### Step 3-6: Same as before...
+(User completes OAuth, server exchanges tokens, watch receives API key)
+
+#### 📱 **Method B: Custom Session ID** 
+
+##### Step 1: Watch App Generates Session ID
+```javascript
+// Generate session ID: user_[16hex]_[timestamp]
+var sessionId = "user_a1b2c3d4e5f6g7h8_" + Time.now().value();
 ```
-GET /weather/smartthings/json.php?api_key=abc123def456789abcdef123456789abcdef123456789abcdef123456789abcdef
+
+##### Step 2: Watch App Registers Session ID  
 ```
-- Watch app uses the automatically received API key
-- Server calculates `SHA256(api_key)` to find token file
-- Loads OAuth tokens from storage
-- Makes authenticated SmartThings API call
-- Returns device list as JSON
+GET /weather/smartthings/json.php?setup=1&format=json&user_id=user_a1b2c3d4e5f6g7h8_1735948800
+```
+
+##### Step 3: Watch App Opens Browser & Starts Polling
+- **Watch opens browser** to returned `auth_url`
+- **Watch starts polling** using its own Session ID  
+- **Benefit**: Watch app has full control over Session ID format
+
+#### 🌐 **Method C: Manual Session ID (Fallback)**
+
+##### Step 1: User Opens Browser
+```
+GET /weather/smartthings/json.php?setup=1
+```
+- Returns HTML page with Session ID displayed
+- User notes Session ID: `user_a1b2c3d4_1735948800`
+
+##### Step 2: User Enters Session ID in Watch App
+- User manually types Session ID into watch app
+- Watch app starts polling using entered Session ID
 
 ### 📱 **Traditional Manual Flow (Browser Only)**
 
@@ -337,22 +376,64 @@ GET /weather/smartthings/json.php?api_key=abc123def456789abcdef123456789abcdef12
 ### 🆕 **Seamless OAuth Implementation (Recommended)**
 
 ```javascript
-// OAuth setup with automatic polling - no user copy/paste needed!
+// OAuth setup with automatic polling - multiple approaches!
 class SmartThingsOAuth {
     
-    function startOAuthSetup() {
-        var setupUrl = "https://yourserver.com/weather/smartthings/json.php?setup=1";
+    // Approach 1: Let server generate Session ID
+    function startOAuthSetupAuto() {
+        var setupUrl = "https://yourserver.com/weather/smartthings/json.php?setup=1&format=json";
         
-        // Open browser for user to complete OAuth
-        Toybox.System.openUrl(setupUrl);
-        
-        // TODO: Extract session ID from the opened page (implementation varies by platform)
-        // For now, you might need to ask user to copy the Session ID
-        showMessage("Complete OAuth in browser, then enter Session ID from the page");
+        Toybox.Communications.makeWebRequest(
+            setupUrl, 
+            null, 
+            {}, 
+            method(:onSetupResponse)
+        );
     }
     
-    function pollForApiKey(sessionId) {
-        var pollUrl = "https://yourserver.com/weather/smartthings/json.php?poll=" + sessionId;
+    // Approach 2: Generate custom Session ID
+    function startOAuthSetupCustom() {
+        // Generate custom session ID with required format
+        var timestamp = Time.now().value();
+        var randomHex = generateRandomHex(16); // 16 characters
+        var sessionId = "user_" + randomHex + "_" + timestamp;
+        
+        var setupUrl = "https://yourserver.com/weather/smartthings/json.php?setup=1&format=json&user_id=" + sessionId;
+        
+        Toybox.Communications.makeWebRequest(
+            setupUrl, 
+            null, 
+            {}, 
+            method(:onSetupResponse)
+        );
+    }
+    
+    function onSetupResponse(responseCode, data) {
+        if (responseCode == 200) {
+            // Save session info
+            Properties.setValue("session_id", data["session_id"]);
+            Properties.setValue("poll_url", data["poll_url"]);
+            
+            // Open browser for user OAuth
+            Toybox.System.openUrl(data["auth_url"]);
+            
+            // Start polling for API key
+            startPolling(data["session_id"]);
+            
+        } else {
+            showError("Setup failed: " + responseCode);
+        }
+    }
+    
+    function startPolling(sessionId) {
+        // Store session ID and start polling
+        _sessionId = sessionId;
+        _pollTimer = new Timer.Timer();
+        _pollTimer.start(method(:pollForApiKey), 5000, true); // Poll every 5 seconds
+    }
+    
+    function pollForApiKey() {
+        var pollUrl = "https://yourserver.com/weather/smartthings/json.php?poll=" + _sessionId;
         
         Toybox.Communications.makeWebRequest(
             pollUrl, 
@@ -370,27 +451,35 @@ class SmartThingsOAuth {
                     var apiKey = data["api_key"];
                     Properties.setValue("api_key", apiKey);
                     Properties.setValue("auth_method", "api_key");
+                    _pollTimer.stop();
                     showMessage("OAuth setup complete!");
-                    stopPolling();
                     break;
                     
                 case "pending":
                     // Still waiting, continue polling
                     var expiresIn = data["expires_in"];
                     showMessage("Waiting for OAuth... (" + expiresIn + "s remaining)");
-                    // Continue polling in 5-10 seconds
                     break;
                     
                 case "expired":
                 case "not_found":
                     // Session expired or invalid, restart setup
+                    _pollTimer.stop();
                     showError("Session expired. Please restart setup.");
-                    stopPolling();
                     break;
             }
         } else {
             showError("Polling failed: " + responseCode);
         }
+    }
+    
+    function generateRandomHex(length) {
+        var chars = "0123456789abcdef";
+        var result = "";
+        for (var i = 0; i < length; i++) {
+            result += chars.charAt(Math.rand() % chars.length());
+        }
+        return result;
     }
 }
 ```
@@ -462,11 +551,22 @@ function onReceive(responseCode, data) {
 4. **Paste into**: Watch app token field
 
 #### For Method 2 (OAuth) Users - Seamless Approach:
-1. **Watch app opens browser** to: `https://yourserver.com/weather/smartthings/json.php?setup=1`
-2. **Watch app starts polling** using Session ID from the page
-3. **User completes OAuth** in browser (no copying needed!)
-4. **Watch app automatically receives** the 64-character API key
-5. **Watch app saves API key** and can immediately start using the API
+
+**🎯 Fully Automated (Recommended):**
+1. **Watch app handles everything** - just tap "Setup OAuth" in watch app
+2. **Watch app gets Session ID** automatically via JSON API
+3. **Watch app opens browser** for you to complete OAuth  
+4. **User completes OAuth** in browser (no copying needed!)
+5. **Watch app automatically receives** the 64-character API key
+6. **Done!** Watch app saves API key and starts using the API immediately
+
+**📱 Semi-Automated (Fallback):**
+1. **User opens** `https://yourserver.com/weather/smartthings/json.php?setup=1` in browser
+2. **User notes Session ID** displayed on page (e.g., `user_a1b2c3d4_1735948800`)  
+3. **User enters Session ID** into watch app settings
+4. **Watch app starts polling** automatically using entered Session ID
+5. **User completes OAuth** in browser (authorize button on same page)
+6. **Watch app automatically receives** the API key - no manual copying!
 
 #### For Method 2 (OAuth) Users - Manual Approach:
 1. **Direct them to**: `https://yourserver.com/weather/smartthings/json.php?setup=1`
