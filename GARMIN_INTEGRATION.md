@@ -1,6 +1,32 @@
 # Garmin Watch SmartThings Integration
 
-This guide explains how users can configure their Garmin watch app to access their SmartThings devices through your web server using **two different methods**.
+This guide explains how users can configure their Garmin watch app to access their SmartThings devices through your web server using **two different authentication methods**.
+
+## 🏗️ **System Architecture Overview**
+
+The SmartThings API server stores credentials and tokens in secure locations:
+
+### Server-Side Storage (Outside Web Root)
+```
+~/smartthings_config/
+├── oauth_tokens.ini              # OAuth app credentials (client_id, client_secret)
+└── tokens/                       # User authentication tokens
+    ├── a1b2c3d4e5f6...json      # User 1's OAuth tokens (filename = SHA256 hash of API key)
+    └── f6e5d4c3b2a1...json      # User 2's OAuth tokens (filename = SHA256 hash of API key)
+```
+
+### What Each Token File Contains
+```json
+{
+  "user_id": "user_a1b2c3d4_1735948800",
+  "api_key": "64-character-random-hex-string",
+  "access_token": "smartthings-oauth-access-token", 
+  "refresh_token": "smartthings-oauth-refresh-token",
+  "created": 1735948800
+}
+```
+
+---
 
 ## For Users: Choose Your Authentication Method
 
@@ -20,23 +46,69 @@ This guide explains how users can configure their Garmin watch app to access the
 
 **What to enter in your Garmin watch app settings:**
 - ✅ **Server URL**: `https://yourserver.com/weather/smartthings/json.php`
-- ✅ **API Key**: `abc123def456...` (provided after OAuth setup)
+- ✅ **API Key**: `abc123def456...` (64-character key provided after OAuth setup)
 
 **Setup Process:**
 1. **Visit setup URL** in any web browser:
    ```
    https://yourserver.com/weather/smartthings/json.php?setup=1
    ```
-2. **Click "Authorize SmartThings Access"**
-3. **Log in with your SmartThings credentials**
-4. **Grant permissions** to access your devices
-5. **Copy your API Key** from the success page
-6. **Done!** Your Garmin watch can now use your API Key
+2. **Note your Session ID** (automatically generated, e.g., `user_a1b2c3d4_1735948800`)
+3. **Click "Authorize SmartThings Access"**
+4. **Log in with your SmartThings credentials**
+5. **Grant permissions** to access your devices
+6. **Copy your API Key** from the success page (64-character hex string)
+7. **Done!** Your Garmin watch can now use your API Key
 
 **Example Setup:**
 - Visit: `https://yourserver.com/weather/smartthings/json.php?setup=1`
-- After authorization, get your API Key: `abc123def456...`
-- Your watch calls: `https://yourserver.com/weather/smartthings/json.php?api_key=abc123def456...`
+- Session ID generated: `user_a1b2c3d4_1735948800`
+- After authorization, get your API Key: `abc123def456789...` (64 characters)
+- Your watch calls: `https://yourserver.com/weather/smartthings/json.php?api_key=abc123def456789...`
+
+---
+
+## 🔐 **Authentication Details for Garmin Developers**
+
+### What Your Garmin Watch App Needs to Store
+
+#### Method 1 - Personal Access Token:
+```json
+{
+  "server_url": "https://yourserver.com/weather/smartthings/json.php",
+  "auth_method": "token",
+  "token": "6e1347cf-db1a-4901-bb81-174f5b1b05db"
+}
+```
+
+#### Method 2 - OAuth API Key:
+```json
+{
+  "server_url": "https://yourserver.com/weather/smartthings/json.php", 
+  "auth_method": "api_key",
+  "api_key": "abc123def456789abcdef123456789abcdef123456789abcdef123456789abcdef"
+}
+```
+
+### What Your Watch App Sends to json.php
+
+#### Method 1 - Personal Token Request:
+```
+GET /weather/smartthings/json.php?token=6e1347cf-db1a-4901-bb81-174f5b1b05db
+```
+
+#### Method 2 - OAuth API Key Request:
+```
+GET /weather/smartthings/json.php?api_key=abc123def456789abcdef123456789abcdef123456789abcdef123456789abcdef
+```
+
+### Server-Side Token Processing
+
+1. **Personal Token**: Server uses token directly with SmartThings API
+2. **OAuth API Key**: 
+   - Server calculates `SHA256(api_key)` to find token file
+   - Loads stored `access_token` and `refresh_token` from file
+   - Uses SmartThings OAuth tokens to access API
 
 ---
 
@@ -50,6 +122,7 @@ This guide explains how users can configure their Garmin watch app to access the
 ### ✅ Choose Method 2 (OAuth) if you:
 - Prefer logging in through the official SmartThings website
 - Want a more "app-like" authorization experience
+- Don't want to create developer tokens manually
 
 ---
 
@@ -60,74 +133,101 @@ This guide explains how users can configure their Garmin watch app to access the
 GET https://yourserver.com/weather/smartthings/json.php?token=6e1347cf-db1a-4901-bb81-174f5b1b05db
 ```
 
-### Method 2: OAuth API Key
+### Method 2: OAuth API Key (64-character hex string)
 ```
-GET https://yourserver.com/weather/smartthings/json.php?api_key=abc123def456...
+GET https://yourserver.com/weather/smartthings/json.php?api_key=abc123def456789abcdef123456789abcdef123456789abcdef123456789abcdef
 ```
 
 **Both methods return the same JSON response:**
 ```json
-[
-  {
-    "id": "9b0820c2-6356-458f-88ca-91084dc9b2f3",
-    "name": "eWeLink Outlet",
-    "label": "Fan Outlet",
-    "type": "ZIGBEE",
-    "value": "off"
-  }
-]
+{
+  "error_code": 200,
+  "error_message": "",
+  "devices": [
+    {
+      "id": "9b0820c2-6356-458f-88ca-91084dc9b2f3",
+      "name": "eWeLink Outlet",
+      "label": "Fan Outlet", 
+      "type": "ZIGBEE",
+      "value": "off"
+    }
+  ]
+}
 ```
 
 ---
 
-## OAuth Setup Flow (Method 2)
+## 🔧 **OAuth Setup Flow Details (Method 2)**
 
 ### Step 1: Initial Setup Request
 ```
-GET /json.php?setup=1
+GET /weather/smartthings/json.php?setup=1
 ```
-Returns an HTML page with authorization button.
+- Server generates random `user_id` like: `user_a1b2c3d4_1735948800`
+- Returns HTML page with authorization button
+- Session ID displayed for reference
 
-### Step 2: SmartThings Authorization
-User clicks button → Redirected to SmartThings → Logs in → Grants permissions
+### Step 2: SmartThings Authorization  
+- User clicks button → Redirected to SmartThings OAuth
+- User logs in → Grants device permissions
+- SmartThings redirects back with authorization code
 
-### Step 3: Completion
-User redirected back with success message showing their API Key. Save this API Key!
+### Step 3: Token Exchange
+- Server exchanges authorization code for OAuth tokens
+- Generates 64-character random API key
+- Stores tokens in file: `/tokens/SHA256(api_key).json`
 
-### Step 4: Normal Usage
+### Step 4: Success Page
+- Displays the 64-character API key to user
+- User copies this key into their Garmin watch app
+- Key format: `abc123def456789abcdef123456789abcdef123456789abcdef123456789abcdef`
+
+### Step 5: Normal Usage
 ```
-GET /json.php?api_key=abc123def456...
+GET /weather/smartthings/json.php?api_key=abc123def456789abcdef123456789abcdef123456789abcdef123456789abcdef
 ```
-Returns JSON array of devices.
+- Server calculates `SHA256(api_key)` to find token file
+- Loads OAuth tokens from storage
+- Makes authenticated SmartThings API call
+- Returns device list as JSON
 
 ---
 
-## Error Handling
+## 🚨 **Error Handling**
 
 ### No Authentication Provided
 ```json
 {
-  "error_message": "Authentication required",
   "error_code": 400,
-  "methods": {
-    "personal_token": "GET /json.php?token=YOUR_PERSONAL_ACCESS_TOKEN",
-    "oauth_setup": "GET /json.php?setup=1"
-  }
+  "error_message": "Authentication required. Use ?token=YOUR_TOKEN or ?api_key=YOUR_API_KEY",
+  "devices": [],
+  "help": "For Personal Access Token: https://account.smartthings.com/tokens"
 }
 ```
 
-### OAuth User Not Set Up Yet
+### Invalid OAuth API Key
 ```json
 {
   "error_message": "Invalid API key. Please complete OAuth setup first.",
   "error_code": 401,
+  "devices": [],
   "setup_url": "/json.php?setup=1"
+}
+```
+
+### OAuth Setup Required  
+```json
+{
+  "error_message": "Invalid API key.",
+  "error_code": 403,
+  "devices": [],
+  "help": "Use the API key provided during OAuth setup"
 }
 ```
 
 ---
 
-## For Garmin Watch Developers
+## 💻 **For Garmin Watch Developers**
 
 ### Sample Code for Both Methods
 
@@ -135,32 +235,156 @@ Returns JSON array of devices.
 // Method 1: Personal Token
 var url1 = "https://yourserver.com/weather/smartthings/json.php?token=" + userToken;
 
-// Method 2: OAuth API Key  
+// Method 2: OAuth API Key (64-character hex string)
 var url2 = "https://yourserver.com/weather/smartthings/json.php?api_key=" + apiKey;
 
 // Same request handling for both methods
 Toybox.Communications.makeWebRequest(url, null, options, method(:onReceive));
+
+function onReceive(responseCode, data) {
+    if (responseCode == 200) {
+        // Success - data contains device list
+        var response = data;  // JSON already parsed
+        var devices = response["devices"];
+        
+        // Process devices array
+        for (var i = 0; i < devices.size(); i++) {
+            var device = devices[i];
+            System.println("Device: " + device["label"] + " = " + device["value"]);
+        }
+    } else {
+        // Handle errors
+        var errorMsg = data["error_message"];
+        System.println("API Error: " + errorMsg);
+        
+        if (responseCode == 401 && data.hasKey("setup_url")) {
+            // OAuth setup required
+            System.println("Setup required at: " + data["setup_url"]);
+        }
+    }
+}
 ```
 
-### User Setup Instructions
+### Watch App Settings Structure
 
-For **Method 1** users: Direct them to SmartThings token page
-For **Method 2** users: Direct them to your setup URL: `/json.php?setup=1`
+**Recommended settings screen:**
+```
+┌─────────────────────────────────┐
+│ SmartThings API Settings        │
+├─────────────────────────────────┤
+│ Server URL: [              ]    │
+│ ________________________________│
+│                                 │
+│ Authentication Method:          │
+│ ○ Personal Token               │
+│ ○ OAuth API Key                │
+│                                 │
+│ Token/API Key: [              ] │
+│ ________________________________│
+│                                 │
+│ [ Test Connection ]             │
+│ [ Save Settings ]               │
+└─────────────────────────────────┘
+```
+
+### User Setup Instructions by Method
+
+#### For Method 1 (Personal Token) Users:
+1. **Direct them to**: https://account.smartthings.com/tokens
+2. **Tell them to**: Create token with device read/control permissions  
+3. **Token format**: 36-character UUID (e.g., `6e1347cf-db1a-4901-bb81-174f5b1b05db`)
+4. **Paste into**: Watch app token field
+
+#### For Method 2 (OAuth) Users:
+1. **Direct them to**: `https://yourserver.com/weather/smartthings/json.php?setup=1`
+2. **Tell them to**: Complete browser-based OAuth authorization
+3. **API Key format**: 64-character hex string (e.g., `abc123def456789abcdef...`)
+4. **Paste into**: Watch app API key field
+
+### Error Handling Best Practices
+
+```javascript
+function handleApiError(responseCode, data) {
+    switch(responseCode) {
+        case 400:
+            // No authentication provided
+            showError("Please configure authentication in settings");
+            break;
+            
+        case 401:
+            // Invalid OAuth API key - setup required
+            if (data.hasKey("setup_url")) {
+                showError("OAuth setup required. Visit: " + data["setup_url"]);
+            } else {
+                showError("Invalid credentials");
+            }
+            break;
+            
+        case 403:
+            // API key format error
+            showError("Invalid API key format");
+            break;
+            
+        case 500:
+            // Server configuration error
+            showError("Server configuration error");
+            break;
+            
+        default:
+            showError("Network error: " + responseCode);
+    }
+}
+```
+
+### Token Storage Recommendations
+
+```javascript
+// Store user credentials securely
+var settings = {
+    "server_url": Properties.getValue("server_url"),
+    "auth_method": Properties.getValue("auth_method"), // "token" or "api_key"
+    "credential": Properties.getValue("credential")     // The actual token or API key
+};
+
+// Validate before use
+function validateSettings() {
+    if (!settings["server_url"] || !settings["credential"]) {
+        return false;
+    }
+    
+    if (settings["auth_method"] == "token") {
+        // Personal token should be 36 characters (UUID format)
+        return settings["credential"].length() == 36;
+    } else if (settings["auth_method"] == "api_key") {
+        // OAuth API key should be 64 characters (hex string)
+        return settings["credential"].length() == 64;
+    }
+    
+    return false;
+}
+```
 
 ---
 
-## Summary
+## 📋 **Summary**
 
 **Method 1 - Personal Token:**
-- ✅ One-time token creation
-- ✅ Direct API access
-- ❌ Requires SmartThings developer token
+- ✅ One-time token creation at SmartThings
+- ✅ Direct API access  
+- ✅ 36-character UUID format
+- ❌ Requires SmartThings developer token creation
 
 **Method 2 - OAuth:**
 - ✅ No token creation needed
-- ✅ Official SmartThings login
-- ✅ More user-friendly
-- ✅ Secure API key only (no user ID needed)
+- ✅ Official SmartThings login flow
+- ✅ More user-friendly browser setup
+- ✅ 64-character hex API key
+- ✅ Secure token storage (SHA256 hashed filenames)
 - ❌ Requires one-time web browser setup
 
-Both methods provide the same functionality - users can choose based on their preference!
+**Storage Architecture:**
+- 🔐 **Server config**: `~/smartthings_config/oauth_tokens.ini` (OAuth app credentials)
+- 🎫 **User tokens**: `~/smartthings_config/tokens/SHA256(api_key).json` (per-user OAuth tokens)
+- 🌐 **API endpoints**: `~/public_html/weather/smartthings/json.php` (web-accessible)
+
+Both methods provide identical functionality - users can choose based on their preference!
