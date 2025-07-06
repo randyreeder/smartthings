@@ -48,7 +48,17 @@ The SmartThings API server stores credentials and tokens in secure locations:
 - ✅ **Server URL**: `https://yourserver.com/weather/smartthings/json.php`
 - ✅ **API Key**: `abc123def456...` (64-character key provided after OAuth setup)
 
-**Setup Process:**
+**🎯 Seamless Setup Process (No Manual Copy/Paste!):**
+1. **Watch app starts OAuth flow** by opening browser to:
+   ```
+   https://yourserver.com/weather/smartthings/json.php?setup=1
+   ```
+2. **Watch app gets Session ID** from the setup page and starts polling
+3. **User completes OAuth** in browser (clicks authorize, logs in, grants permissions)
+4. **Watch app automatically receives API key** via polling - no manual copy needed!
+5. **Done!** Watch app automatically saves and starts using the API key
+
+**📱 Traditional Setup Process (Manual):**
 1. **Visit setup URL** in any web browser:
    ```
    https://yourserver.com/weather/smartthings/json.php?setup=1
@@ -58,12 +68,13 @@ The SmartThings API server stores credentials and tokens in secure locations:
 4. **Log in with your SmartThings credentials**
 5. **Grant permissions** to access your devices
 6. **Copy your API Key** from the success page (64-character hex string)
-7. **Done!** Your Garmin watch can now use your API Key
+7. **Manually enter API Key** into your Garmin watch app
 
 **Example Setup:**
 - Visit: `https://yourserver.com/weather/smartthings/json.php?setup=1`
 - Session ID generated: `user_a1b2c3d4_1735948800`
-- After authorization, get your API Key: `abc123def456789...` (64 characters)
+- Watch app polls: `https://yourserver.com/weather/smartthings/json.php?poll=user_a1b2c3d4_1735948800`
+- After authorization, API Key: `abc123def456789...` (automatically delivered to watch app)
 - Your watch calls: `https://yourserver.com/weather/smartthings/json.php?api_key=abc123def456789...`
 
 ---
@@ -97,9 +108,65 @@ The SmartThings API server stores credentials and tokens in secure locations:
 GET /weather/smartthings/json.php?token=6e1347cf-db1a-4901-bb81-174f5b1b05db
 ```
 
-#### Method 2 - OAuth API Key Request:
+#### Method 2a - OAuth API Key Request:
 ```
 GET /weather/smartthings/json.php?api_key=abc123def456789abcdef123456789abcdef123456789abcdef123456789abcdef
+```
+
+#### Method 2b - OAuth Session Polling (NEW!):
+```
+GET /weather/smartthings/json.php?poll=user_a1b2c3d4_1735948800
+```
+
+### 🆕 **Seamless OAuth Polling API**
+
+The polling API allows watch apps to automatically receive the API key without user copy/paste:
+
+#### Setup Flow:
+1. **Watch opens browser** to setup URL
+2. **Watch extracts Session ID** from the setup page
+3. **Watch starts polling** every 5-10 seconds
+4. **User completes OAuth** in browser  
+5. **Watch automatically receives API key** and stops polling
+
+#### Polling Responses:
+
+**🔄 Pending (waiting for user to complete OAuth):**
+```json
+{
+  "status": "pending",
+  "message": "Waiting for OAuth authorization to complete",
+  "session_id": "user_a1b2c3d4_1735948800",
+  "expires_in": 3240
+}
+```
+
+**✅ Success (OAuth completed):**
+```json
+{
+  "status": "success", 
+  "api_key": "abc123def456789abcdef123456789abcdef123456789abcdef123456789abcdef",
+  "message": "OAuth setup completed successfully",
+  "session_id": "user_a1b2c3d4_1735948800"
+}
+```
+
+**❌ Session Not Found:**
+```json
+{
+  "status": "not_found",
+  "message": "Session not found or expired",
+  "session_id": "user_a1b2c3d4_1735948800"
+}
+```
+
+**⏰ Session Expired:**
+```json
+{
+  "status": "expired",
+  "message": "Session expired. Please start a new setup process.",
+  "session_id": "user_a1b2c3d4_1735948800"
+}
 ```
 
 ### Server-Side Token Processing
@@ -229,7 +296,68 @@ GET /weather/smartthings/json.php?api_key=abc123def456789abcdef123456789abcdef12
 
 ## 💻 **For Garmin Watch Developers**
 
-### Sample Code for Both Methods
+### 🆕 **Seamless OAuth Implementation (Recommended)**
+
+```javascript
+// OAuth setup with automatic polling - no user copy/paste needed!
+class SmartThingsOAuth {
+    
+    function startOAuthSetup() {
+        var setupUrl = "https://yourserver.com/weather/smartthings/json.php?setup=1";
+        
+        // Open browser for user to complete OAuth
+        Toybox.System.openUrl(setupUrl);
+        
+        // TODO: Extract session ID from the opened page (implementation varies by platform)
+        // For now, you might need to ask user to copy the Session ID
+        showMessage("Complete OAuth in browser, then enter Session ID from the page");
+    }
+    
+    function pollForApiKey(sessionId) {
+        var pollUrl = "https://yourserver.com/weather/smartthings/json.php?poll=" + sessionId;
+        
+        Toybox.Communications.makeWebRequest(
+            pollUrl, 
+            null, 
+            {}, 
+            method(:onPollResponse)
+        );
+    }
+    
+    function onPollResponse(responseCode, data) {
+        if (responseCode == 200) {
+            switch(data["status"]) {
+                case "success":
+                    // Got the API key! Save it and stop polling
+                    var apiKey = data["api_key"];
+                    Properties.setValue("api_key", apiKey);
+                    Properties.setValue("auth_method", "api_key");
+                    showMessage("OAuth setup complete!");
+                    stopPolling();
+                    break;
+                    
+                case "pending":
+                    // Still waiting, continue polling
+                    var expiresIn = data["expires_in"];
+                    showMessage("Waiting for OAuth... (" + expiresIn + "s remaining)");
+                    // Continue polling in 5-10 seconds
+                    break;
+                    
+                case "expired":
+                case "not_found":
+                    // Session expired or invalid, restart setup
+                    showError("Session expired. Please restart setup.");
+                    stopPolling();
+                    break;
+            }
+        } else {
+            showError("Polling failed: " + responseCode);
+        }
+    }
+}
+```
+
+### **Traditional API Usage (Both Methods)**
 
 ```javascript
 // Method 1: Personal Token
@@ -295,11 +423,18 @@ function onReceive(responseCode, data) {
 3. **Token format**: 36-character UUID (e.g., `6e1347cf-db1a-4901-bb81-174f5b1b05db`)
 4. **Paste into**: Watch app token field
 
-#### For Method 2 (OAuth) Users:
+#### For Method 2 (OAuth) Users - Seamless Approach:
+1. **Watch app opens browser** to: `https://yourserver.com/weather/smartthings/json.php?setup=1`
+2. **Watch app starts polling** using Session ID from the page
+3. **User completes OAuth** in browser (no copying needed!)
+4. **Watch app automatically receives** the 64-character API key
+5. **Watch app saves API key** and can immediately start using the API
+
+#### For Method 2 (OAuth) Users - Manual Approach:
 1. **Direct them to**: `https://yourserver.com/weather/smartthings/json.php?setup=1`
 2. **Tell them to**: Complete browser-based OAuth authorization
 3. **API Key format**: 64-character hex string (e.g., `abc123def456789abcdef...`)
-4. **Paste into**: Watch app API key field
+4. **Copy/paste into**: Watch app API key field
 
 ### Error Handling Best Practices
 
@@ -380,11 +515,21 @@ function validateSettings() {
 - ✅ More user-friendly browser setup
 - ✅ 64-character hex API key
 - ✅ Secure token storage (SHA256 hashed filenames)
+- 🆕 **Seamless polling API** - no manual copy/paste needed!
+- ✅ **Session-based setup** with automatic API key delivery
 - ❌ Requires one-time web browser setup
+
+**🆕 New Polling API Features:**
+- 🔄 **Automatic API key retrieval** via session polling
+- ⏰ **1-hour session expiry** for security
+- 🧹 **Automatic cleanup** of completed/expired sessions  
+- 📱 **No manual copy/paste** required for watch apps
+- 🔒 **Secure session tracking** with SHA256 hashed session files
 
 **Storage Architecture:**
 - 🔐 **Server config**: `~/smartthings_config/oauth_tokens.ini` (OAuth app credentials)
 - 🎫 **User tokens**: `~/smartthings_config/tokens/SHA256(api_key).json` (per-user OAuth tokens)
+- 🕰️ **Session files**: `~/smartthings_config/tokens/session_SHA256(session_id).json` (temporary polling)
 - 🌐 **API endpoints**: `~/public_html/weather/smartthings/json.php` (web-accessible)
 
-Both methods provide identical functionality - users can choose based on their preference!
+Both methods provide identical functionality - users can choose based on their preference! The new polling API makes OAuth setup seamless for watch applications.

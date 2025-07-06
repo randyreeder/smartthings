@@ -94,12 +94,15 @@ $user_token = $_REQUEST['token'] ?? null;
 $api_key = $_REQUEST['api_key'] ?? null;
 $setup_mode = $_GET['setup'] ?? null; // Setup mode stays GET-only
 $user_id = $_GET['user_id'] ?? null; // Optional for setup mode
+$poll_session = $_GET['poll'] ?? null; // New: Poll for API key by session ID
 
 // Log authentication attempts for debugging
 if ($user_token) {
     error_log("json.php..token:" . substr($user_token, 0, 8) . "...");
 } elseif ($api_key) {
     error_log("json.php..api_key:" . substr($api_key, 0, 8) . "...");
+} elseif ($poll_session) {
+    error_log("json.php..polling session:" . substr($poll_session, 0, 16) . "...");
 }
 
 // Method 1: Personal Access Token
@@ -120,6 +123,10 @@ if ($user_token) {
     $state_data = json_decode(base64_decode($_GET['state']), true);
     $user_id = $state_data['user_id'] ?? 'unknown_user';
     handleOAuthCallback($user_id, $_GET['code']);
+    
+// Method 2: Poll for API key by session ID
+} elseif ($poll_session) {
+    handleSessionPoll($poll_session);
     
 // Method 2: Use stored OAuth tokens
 } elseif ($api_key) {
@@ -159,6 +166,15 @@ function handleOAuthSetup($user_id) {
 <body style='font-family: Arial; max-width: 600px; margin: 50px auto; padding: 20px;'>
     <h2>SmartThings Authorization</h2>
     <p>Session ID: <strong>" . htmlspecialchars($user_id) . "</strong></p>
+    
+    <div style='background: #e7f3ff; border: 1px solid #b3d9ff; padding: 15px; margin: 20px 0; border-radius: 5px;'>
+        <h3>🕰️ For Garmin Watch Apps:</h3>
+        <p>Your watch app can automatically retrieve the API key using this Session ID!</p>
+        <p><strong>Polling URL:</strong></p>
+        <code style='word-break: break-all; background: #f5f5f5; padding: 5px;'>" . htmlspecialchars(REDIRECT_URI) . "?poll=" . urlencode($user_id) . "</code>
+        <p style='font-size: 14px; margin-top: 10px;'>The watch app should poll this URL every 5-10 seconds until it receives the API key.</p>
+    </div>
+    
     <p>Click the button below to authorize access to your SmartThings devices:</p>
     <a href='" . htmlspecialchars($auth_url) . "' 
        style='background: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block;'>
@@ -214,12 +230,18 @@ function handleOAuthCallback($user_id, $auth_code) {
 <head><title>Authorization Complete</title></head>
 <body style='font-family: Arial; max-width: 600px; margin: 50px auto; padding: 20px;'>
     <h2>✅ Authorization Complete!</h2>
-    <p>User ID: <strong>" . htmlspecialchars($user_id) . "</strong></p>
+    <p>Session ID: <strong>" . htmlspecialchars($user_id) . "</strong></p>
     <p>Your SmartThings account has been successfully connected.</p>
     
     <div style='background: #d4edda; border: 1px solid #c3e6cb; padding: 20px; margin: 20px 0; border-radius: 5px;'>
         <h3>🔐 Your Secure API Credential:</h3>
         <p><strong>API Key:</strong> <code style='word-break: break-all;'>" . htmlspecialchars($api_key) . "</code></p>
+    </div>
+    
+    <div style='background: #e7f3ff; border: 1px solid #b3d9ff; padding: 15px; margin: 20px 0; border-radius: 5px;'>
+        <h3>📱 For Watch Apps:</h3>
+        <p>Your watch app has automatically received this API key if it was polling for updates!</p>
+        <p>If not, you can manually enter the API key above into your watch app settings.</p>
     </div>
     
     <p>Your Garmin watch can now access your devices using:</p>
@@ -317,7 +339,74 @@ function saveUserTokens($user_id, $access_token, $refresh_token) {
     ];
     
     file_put_contents($tokens_file, json_encode($tokens));
+    
+    // Also save a session file for polling (temporary, expires in 1 hour)
+    $session_file = $tokens_dir . '/session_' . hash('sha256', $user_id) . '.json';
+    $session_data = [
+        'user_id' => $user_id,
+        'api_key' => $api_key,
+        'created' => time(),
+        'expires' => time() + 3600 // 1 hour expiry
+    ];
+    file_put_contents($session_file, json_encode($session_data));
+    
     return $api_key;
+}
+
+// Handle session polling for API key retrieval
+function handleSessionPoll($session_id) {
+    global $tokens_dir;
+    
+    $session_file = $tokens_dir . '/session_' . hash('sha256', $session_id) . '.json';
+    
+    if (!file_exists($session_file)) {
+        header('Content-Type: application/json');
+        echo json_encode([
+            'status' => 'not_found',
+            'message' => 'Session not found or expired',
+            'session_id' => $session_id
+        ]);
+        exit;
+    }
+    
+    $session_data = json_decode(file_get_contents($session_file), true);
+    
+    // Check if session has expired
+    if (time() > $session_data['expires']) {
+        unlink($session_file); // Clean up expired session
+        header('Content-Type: application/json');
+        echo json_encode([
+            'status' => 'expired',
+            'message' => 'Session expired. Please start a new setup process.',
+            'session_id' => $session_id
+        ]);
+        exit;
+    }
+    
+    // Check if API key is available (OAuth completed)
+    if (isset($session_data['api_key']) && !empty($session_data['api_key'])) {
+        // Clean up session file after successful retrieval
+        unlink($session_file);
+        
+        header('Content-Type: application/json');
+        echo json_encode([
+            'status' => 'success',
+            'api_key' => $session_data['api_key'],
+            'message' => 'OAuth setup completed successfully',
+            'session_id' => $session_id
+        ]);
+        exit;
+    } else {
+        // Still waiting for OAuth completion
+        header('Content-Type: application/json');
+        echo json_encode([
+            'status' => 'pending',
+            'message' => 'Waiting for OAuth authorization to complete',
+            'session_id' => $session_id,
+            'expires_in' => $session_data['expires'] - time()
+        ]);
+        exit;
+    }
 }
 try {
     $devices = $smartAPI->list_devices();
