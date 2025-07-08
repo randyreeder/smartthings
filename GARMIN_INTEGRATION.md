@@ -216,6 +216,83 @@ GET /weather/smartthings/json.php?setup=1&format=json&user_id=custom_session_id
 
 ---
 
+## 🔄 **How Refresh Tokens Work**
+
+### Token Lifecycle
+OAuth access tokens expire (typically after 24 hours). Refresh tokens allow your system to automatically get new access tokens without requiring user re-authentication.
+
+### Automatic Refresh Process
+1. **API Request Made** - Watch app makes API call using stored API key
+2. **Token Expired** - SmartThings returns 401 Unauthorized (access token expired)
+3. **Automatic Refresh** - Server automatically uses refresh token to get new access token
+4. **Token Updated** - New access token (and potentially new refresh token) stored in user's token file
+5. **Request Retried** - Original API request retried with new access token
+6. **Success** - API call succeeds, watch app gets data
+
+### What Happens Behind the Scenes
+
+#### Server-Side Refresh Process:
+```php
+// When SmartThings API returns 401 (token expired)
+if ($code === 401 && !empty($refresh_token)) {
+    // 1. Call SmartThings OAuth refresh endpoint
+    POST https://auth-global.api.smartthings.com/oauth/token
+    {
+        "grant_type": "refresh_token",
+        "client_id": "your_app_client_id",
+        "client_secret": "your_app_client_secret", 
+        "refresh_token": "stored_refresh_token"
+    }
+    
+    // 2. SmartThings responds with new tokens
+    {
+        "access_token": "new_access_token",
+        "refresh_token": "new_refresh_token", // May be same or new
+        "token_type": "Bearer",
+        "expires_in": 86400
+    }
+    
+    // 3. Update stored tokens in user's JSON file
+    {
+        "user_id": "user_a1b2c3d4_1735948800",
+        "api_key": "abc123def456...",
+        "access_token": "new_access_token",     // Updated
+        "refresh_token": "new_refresh_token",   // Updated
+        "created": 1735948800,
+        "refreshed": 1735948900                 // Added timestamp
+    }
+    
+    // 4. Retry original API request with new access token
+    // 5. Return data to watch app (seamless to user)
+}
+```
+
+### User Experience
+- **Seamless** - Watch app continues working without interruption
+- **No Re-authentication** - Users never need to redo OAuth setup
+- **Automatic** - All token refresh happens server-side
+- **Secure** - Refresh tokens are stored securely on server
+
+### Token Security
+- **Refresh tokens** are long-lived (months/years) and stored securely on server
+- **Access tokens** are short-lived (hours/days) and refreshed automatically
+- **API keys** (64-character hex) are permanent identifiers for watch apps
+- **Session IDs** are temporary (1 hour) and used only during OAuth setup
+
+### Error Handling
+If refresh token is invalid or expired:
+- User will need to complete OAuth setup again
+- Watch app will receive 401 error with `setup_url` in response
+- Users can re-authorize without losing other settings
+
+### Refresh Token Best Practices
+1. **Store securely** - Refresh tokens stored outside web root
+2. **Handle rotation** - Some OAuth providers issue new refresh tokens on refresh
+3. **Graceful degradation** - Fall back to re-authentication if refresh fails
+4. **Logging** - Log refresh attempts for debugging (but not token values)
+
+---
+
 ## Which Method Should You Choose?
 
 ### ✅ Choose Method 1 (Personal Token) if you:

@@ -342,7 +342,27 @@ function handleOAuthCallback($user_id, $auth_code) {
     exit;
 }
 
-// Load stored tokens by API key
+// Get OAuth client credentials from config file
+function getClientCredentials() {
+    global $config_file;
+    
+    if (!file_exists($config_file)) {
+        throw new Exception("OAuth configuration file not found: " . $config_file);
+    }
+    
+    $config = parse_ini_file($config_file);
+    
+    if (!isset($config['client_id']) || !isset($config['client_secret'])) {
+        throw new Exception("OAuth client credentials not found in config file");
+    }
+    
+    return [
+        'client_id' => $config['client_id'],
+        'client_secret' => $config['client_secret']
+    ];
+}
+
+// Get OAuth API wrapper with stored tokens
 function loadTokensByApiKey($api_key) {
     global $tokens_dir;
     $tokens_file = $tokens_dir . '/' . hash('sha256', $api_key) . '.json';
@@ -372,7 +392,7 @@ function loadTokensByApiKey($api_key) {
         exit;
     }
     
-    return new SmartThings\SmartThingsAPI($tokens['access_token'], $tokens['refresh_token']);
+    return new SmartThings\SmartThingsAPI($tokens['access_token'], $tokens['refresh_token'], getClientCredentials()['client_id'], getClientCredentials()['client_secret'], $tokens_file);
 }
 
 // Save tokens for a user with API key as primary identifier

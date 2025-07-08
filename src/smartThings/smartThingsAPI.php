@@ -18,8 +18,11 @@ class SmartThingsAPI {
     protected $client;
     protected $request_body;
     protected $code_mapping;
+    protected $client_id;
+    protected $client_secret;
+    protected $user_token_file;
 
-    function __construct($auth_param, string $refresh_token = null) {
+    function __construct($auth_param, string $refresh_token = null, string $client_id = null, string $client_secret = null, string $user_token_file = null) {
         // Support both bearer token (legacy) and access_token/refresh_token (OAuth)
         if (is_string($auth_param) && $refresh_token === null) {
             // Legacy bearer token mode
@@ -32,6 +35,9 @@ class SmartThingsAPI {
             $this->access_token = $auth_param;
             $this->refresh_token = $refresh_token;
             $this->bearer = $this->access_token; // Use access_token as bearer
+            $this->client_id = $client_id;
+            $this->client_secret = $client_secret;
+            $this->user_token_file = $user_token_file;
         }
         $this->cookieStorage = new \GuzzleHttp\Cookie\CookieJar;
         $this->client = new \GuzzleHttp\Client([
@@ -143,6 +149,11 @@ class SmartThingsAPI {
                     $this->saveTokensToFile($config_file_path);
                 }
                 
+                // Update user token file if available
+                if (!empty($this->user_token_file)) {
+                    $this->updateUserTokenFile();
+                }
+                
                 return true;
             }
         }
@@ -162,6 +173,27 @@ class SmartThingsAPI {
      */
     public function getRefreshToken() : ?string {
         return $this->refresh_token;
+    }
+
+    /**
+     * Update the user's token file with refreshed tokens
+     */
+    private function updateUserTokenFile() {
+        if (empty($this->user_token_file) || !file_exists($this->user_token_file)) {
+            return false;
+        }
+        
+        $tokens = json_decode(file_get_contents($this->user_token_file), true);
+        if ($tokens) {
+            $tokens['access_token'] = $this->access_token;
+            $tokens['refresh_token'] = $this->refresh_token;
+            $tokens['refreshed'] = time();
+            
+            file_put_contents($this->user_token_file, json_encode($tokens));
+            return true;
+        }
+        
+        return false;
     }
 
     /**
@@ -288,16 +320,16 @@ class SmartThingsAPI {
         $code = $call->getStatusCode();
         
         // If we get a 401 and have a refresh token, try to refresh the access token
-        if ($code === 401 && !empty($this->refresh_token)) {
-            // Note: You'll need to store client_id and client_secret somewhere accessible
-            // For now, this is a placeholder - you'll need to implement token storage/retrieval
+        if ($code === 401 && !empty($this->refresh_token) && !empty($this->client_id) && !empty($this->client_secret)) {
             try {
-                // This would need client credentials to work properly
-                // $this->refreshAccessToken($client_id, $client_secret);
-                // $call = $this->makeRequest($request_type, $url, $request_body);
-                // $code = $call->getStatusCode();
+                $this->refreshAccessToken($this->client_id, $this->client_secret);
+                // Retry the original request with the new token
+                $request_body['headers']['Authorization'] = 'Bearer ' . $this->bearer;
+                $call = $this->makeRequest($request_type, $url, $request_body);
+                $code = $call->getStatusCode();
             } catch (\Exception $e) {
                 // Token refresh failed, continue with original error
+                error_log("Token refresh failed: " . $e->getMessage());
             }
         }
         
