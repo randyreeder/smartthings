@@ -490,10 +490,40 @@ function handleSessionPoll($session_id) {
 try {
     $devices = $smartAPI->list_devices();
 } catch (Exception $e) {
-    error_log("json.php...." . $e->getMessage() . "..." . $e->getCode());
-    header('HTTP/1.1 '.$e->getCode() . ' ' . $e->getMessage());
-    echo json_encode(Array("error_message" => $e->getMessage(), "error_code" => $e->getCode(), "devices" => []));
-    exit;
+    // If 401 Unauthorized and we have refresh token, try to refresh and retry
+    if ($e->getCode() === 401 && $smartAPI->getRefreshToken()) {
+        error_log("json.php: Access token expired, attempting refresh...");
+        try {
+            $client_creds = getClientCredentials();
+            $refreshed = $smartAPI->refreshAccessToken($client_creds['client_id'], $client_creds['client_secret']);
+            
+            if ($refreshed) {
+                error_log("json.php: Token refresh successful, retrying API call...");
+                // Retry the API call with refreshed token
+                $devices = $smartAPI->list_devices();
+            } else {
+                throw new Exception("Token refresh failed", 401);
+            }
+        } catch (Exception $refresh_error) {
+            error_log("json.php: Token refresh failed: " . $refresh_error->getMessage());
+            // Return original error or refresh error
+            header('HTTP/1.1 401 Unauthorized');
+            echo json_encode([
+                "error_message" => "Authentication expired. Please complete OAuth setup again.",
+                "error_code" => 401,
+                "devices" => [],
+                "setup_url" => "/json.php?setup=1",
+                "debug" => "Token refresh failed: " . $refresh_error->getMessage()
+            ]);
+            exit;
+        }
+    } else {
+        // Non-401 error or no refresh token available
+        error_log("json.php...." . $e->getMessage() . "..." . $e->getCode());
+        header('HTTP/1.1 '.$e->getCode() . ' ' . $e->getMessage());
+        echo json_encode(Array("error_message" => $e->getMessage(), "error_code" => $e->getCode(), "devices" => []));
+        exit;
+    }
 }
 
 /*
