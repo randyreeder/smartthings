@@ -130,9 +130,18 @@ class SmartThingsAPI {
         ]);
 
         $code = $response->getStatusCode();
+        $response_body = $response->getBody()->getContents();
+        
+        // Log refresh attempt details
+        error_log("SmartThingsAPI: REFRESH REQUEST - Client ID: {$client_id}");
+        error_log("SmartThingsAPI: REFRESH REQUEST - Refresh token: " . substr($this->refresh_token, 0, 8) . "...");
+        error_log("SmartThingsAPI: REFRESH RESPONSE - HTTP Code: {$code}");
+        error_log("SmartThingsAPI: REFRESH RESPONSE - Body: " . $response_body);
+        
         if ($code === 200) {
-            $body = json_decode($response->getBody()->getContents(), true);
+            $body = json_decode($response_body, true);
             if (isset($body['access_token'])) {
+                error_log("SmartThingsAPI: REFRESH SUCCESS - New access token received");
                 $this->access_token = $body['access_token'];
                 $this->bearer = $this->access_token;
                 
@@ -155,10 +164,14 @@ class SmartThingsAPI {
                 }
                 
                 return true;
+            } else {
+                error_log("SmartThingsAPI: REFRESH ERROR - Response missing access_token field");
             }
+        } else {
+            error_log("SmartThingsAPI: REFRESH ERROR - HTTP {$code} response");
         }
         
-        throw new \Exception('Failed to refresh access token', $code);
+        throw new \Exception('Failed to refresh access token: HTTP ' . $code . ' - ' . $response_body, $code);
     }
 
     /**

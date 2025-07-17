@@ -10,6 +10,67 @@ if (basename($_SERVER['SCRIPT_NAME']) !== basename(__FILE__)) {
 // Disable PHP warnings and deprecation notices for clean JSON output
 error_reporting(E_ERROR | E_PARSE);
 
+// SmartThings Webhook Handler for Lifecycle Events
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $input = file_get_contents('php://input');
+    $webhook_data = json_decode($input, true);
+    
+    // Handle SmartThings lifecycle events
+    if ($webhook_data && isset($webhook_data['lifecycle'])) {
+        switch ($webhook_data['lifecycle']) {
+            case 'PING':
+                // Respond to SmartThings registration ping
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'pingData' => [
+                        'challenge' => $webhook_data['pingData']['challenge'] ?? ''
+                    ]
+                ]);
+                exit;
+                
+            case 'CONFIGURATION':
+                // Handle app configuration lifecycle
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'configurationData' => []
+                ]);
+                exit;
+                
+            case 'INSTALL':
+            case 'UPDATE':
+            case 'UNINSTALL':
+                // Handle app installation lifecycle
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'installData' => [],
+                    'updateData' => [],
+                    'uninstallData' => []
+                ]);
+                exit;
+                
+            case 'EVENT':
+                // Handle device events (if needed in future)
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'eventData' => []
+                ]);
+                exit;
+                
+            default:
+                // Unknown lifecycle event
+                header('Content-Type: application/json');
+                http_response_code(200);
+                echo json_encode(['status' => 'received']);
+                exit;
+        }
+    }
+    
+    // If not a SmartThings webhook, return error for POST requests
+    http_response_code(405);
+    echo json_encode(['error' => 'Method not allowed']);
+    exit;
+}
+
 /*
  * SmartThings API for Garmin Watch - Multiple Authentication Methods
  * 
@@ -492,20 +553,34 @@ try {
 } catch (Exception $e) {
     // If 401 Unauthorized and we have refresh token, try to refresh and retry
     if ($e->getCode() === 401 && $smartAPI->getRefreshToken()) {
-        error_log("json.php: Access token expired, attempting refresh...");
+        $refresh_token = $smartAPI->getRefreshToken();
+        $timestamp = date('Y-m-d H:i:s');
+        
+        error_log("json.php: REFRESH ATTEMPT - Time: {$timestamp}");
+        error_log("json.php: REFRESH ATTEMPT - API key: " . substr($api_key ?? 'N/A', 0, 8) . "...");
+        error_log("json.php: REFRESH ATTEMPT - Refresh token: " . substr($refresh_token, 0, 8) . "...");
+        error_log("json.php: REFRESH ATTEMPT - Original error: " . $e->getMessage());
+        
         try {
             $client_creds = getClientCredentials();
+            error_log("json.php: REFRESH ATTEMPT - Client ID: " . $client_creds['client_id']);
+            
             $refreshed = $smartAPI->refreshAccessToken($client_creds['client_id'], $client_creds['client_secret']);
             
             if ($refreshed) {
-                error_log("json.php: Token refresh successful, retrying API call...");
+                error_log("json.php: REFRESH SUCCESS - New access token obtained at {$timestamp}");
                 // Retry the API call with refreshed token
                 $devices = $smartAPI->list_devices();
+                error_log("json.php: REFRESH SUCCESS - API call succeeded with new token");
             } else {
+                error_log("json.php: REFRESH FAILED - refreshAccessToken returned false");
                 throw new Exception("Token refresh failed", 401);
             }
         } catch (Exception $refresh_error) {
-            error_log("json.php: Token refresh failed: " . $refresh_error->getMessage());
+            error_log("json.php: REFRESH ERROR - Exception: " . $refresh_error->getMessage());
+            error_log("json.php: REFRESH ERROR - Code: " . $refresh_error->getCode());
+            error_log("json.php: REFRESH ERROR - Time: {$timestamp}");
+            
             // Return original error or refresh error
             header('HTTP/1.1 401 Unauthorized');
             echo json_encode([
@@ -513,7 +588,14 @@ try {
                 "error_code" => 401,
                 "devices" => [],
                 "setup_url" => "/json.php?setup=1",
-                "debug" => "Token refresh failed: " . $refresh_error->getMessage()
+                "debug" => "Token refresh failed: " . $refresh_error->getMessage(),
+                "refresh_details" => [
+                    "timestamp" => $timestamp,
+                    "api_key_prefix" => substr($api_key ?? 'N/A', 0, 8),
+                    "refresh_token_prefix" => substr($refresh_token, 0, 8),
+                    "client_id" => $client_creds['client_id'] ?? 'N/A',
+                    "error_code" => $refresh_error->getCode()
+                ]
             ]);
             exit;
         }
