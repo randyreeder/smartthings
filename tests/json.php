@@ -156,19 +156,22 @@ $api_key = $_REQUEST['api_key'] ?? null;
 $setup_mode = $_GET['setup'] ?? null; // Setup mode stays GET-only
 $user_id = $_GET['user_id'] ?? null; // Optional for setup mode
 $poll_session = $_GET['poll'] ?? null; // New: Poll for API key by session ID
+$debug_mode = $_GET['debug'] ?? null; // Debug mode to show all raw device data
 
 // Log authentication attempts for debugging
 if ($user_token) {
-    error_log("json.php..token:" . substr($user_token, 0, 8) . "...");
+    error_log("json.php: AUTH_METHOD=personal_token, token_prefix=" . substr($user_token, 0, 8) . "...");
 } elseif ($api_key) {
-    error_log("json.php..api_key:" . substr($api_key, 0, 8) . "...");
+    error_log("json.php: AUTH_METHOD=oauth_api_key, api_key_prefix=" . substr($api_key, 0, 8) . "...");
 } elseif ($poll_session) {
-    error_log("json.php..polling session:" . substr($poll_session, 0, 16) . "...");
+    error_log("json.php: AUTH_METHOD=oauth_polling, session_id=" . substr($poll_session, 0, 16) . "...");
+} elseif ($debug_mode) {
+    error_log("json.php: AUTH_METHOD=debug_mode, debug_param=" . $debug_mode);
 }
 
 // Method 1: Personal Access Token
 if ($user_token) {
-    $smartAPI = new SmartThings\SmartThingsAPI($user_token, $user_token);
+    $smartAPI = new SmartThings\SmartThingsAPI($user_token); // Don't pass refresh token for personal tokens
     
 // Method 2: OAuth setup mode
 } elseif ($setup_mode) {
@@ -289,6 +292,9 @@ function handleSetupJSON($user_id) {
     ];
     file_put_contents($session_file, json_encode($session_data));
     
+    // OAuth Setup logging
+    error_log("OAuth Setup: session_id=$user_id, expires=" . (time() + 3600) . ", timestamp=" . time());
+    
     // Return session info and auth URL
     $auth_url = 'https://api.smartthings.com/oauth/authorize?' . http_build_query([
         'response_type' => 'code',
@@ -310,6 +316,11 @@ function handleSetupJSON($user_id) {
 
 // Handle OAuth callback
 function handleOAuthCallback($user_id, $auth_code) {
+    // OAuth Callback logging
+    $error = $_GET['error'] ?? '';
+    $state = $_GET['state'] ?? '';
+    error_log("OAuth Callback: session_id=$user_id, code=" . substr($auth_code, 0, 8) . "..., state=" . substr($state, 0, 20) . "..., error=$error");
+    
     $token_data = [
         'grant_type' => 'authorization_code',
         'redirect_uri' => REDIRECT_URI,  // Exact match with what was sent
@@ -342,6 +353,10 @@ function handleOAuthCallback($user_id, $auth_code) {
     
     if ($http_code === 200) {
         $tokens = json_decode($response, true);
+        
+        // OAuth Token Exchange Success logging
+        error_log("Token Exchange SUCCESS: session_id=$user_id, access_token=" . substr($tokens['access_token'], 0, 8) . "..., refresh_token=" . substr($tokens['refresh_token'], 0, 8) . "...");
+        
         $api_key = saveUserTokens($user_id, $tokens['access_token'], $tokens['refresh_token']);
         
         header('Content-Type: text/html; charset=utf-8');
@@ -480,6 +495,9 @@ function saveUserTokens($user_id, $access_token, $refresh_token) {
     
     file_put_contents($tokens_file, json_encode($tokens));
     
+    // Log the new API key creation
+    error_log("API Key Created: session_id=$user_id, api_key=" . substr($api_key, 0, 8) . "..., access_token=" . substr($access_token, 0, 8) . "..., refresh_token=" . substr($refresh_token, 0, 8) . "...");
+    
     // Also save a session file for polling (temporary, expires in 1 hour)
     $session_file = $tokens_dir . '/session_' . hash('sha256', $user_id) . '.json';
     $session_data = [
@@ -538,6 +556,9 @@ function handleSessionPoll($session_id) {
         exit;
     } else {
         // Still waiting for OAuth completion
+        // OAuth Polling logging
+        error_log("OAuth Poll: session_id=$session_id, status=pending, expires_in=" . ($session_data['expires'] - time()) . ", timestamp=" . time());
+        
         header('Content-Type: application/json');
         echo json_encode([
             'status' => 'pending',
@@ -557,7 +578,7 @@ try {
         $timestamp = date('Y-m-d H:i:s');
         
         error_log("json.php: REFRESH ATTEMPT - Time: {$timestamp}");
-        error_log("json.php: REFRESH ATTEMPT - API key: " . substr($api_key ?? 'N/A', 0, 8) . "...");
+        error_log("json.php: REFRESH ATTEMPT - AUTH_METHOD=oauth_api_key, api_key=" . substr($api_key ?? 'N/A', 0, 8) . "...");
         error_log("json.php: REFRESH ATTEMPT - Refresh token: " . substr($refresh_token, 0, 8) . "...");
         error_log("json.php: REFRESH ATTEMPT - Original error: " . $e->getMessage());
         
@@ -568,16 +589,16 @@ try {
             $refreshed = $smartAPI->refreshAccessToken($client_creds['client_id'], $client_creds['client_secret']);
             
             if ($refreshed) {
-                error_log("json.php: REFRESH SUCCESS - New access token obtained at {$timestamp}");
+                error_log("json.php: REFRESH SUCCESS - AUTH_METHOD=oauth_api_key, api_key=" . substr($api_key ?? 'N/A', 0, 8) . "..., new_access_token obtained at {$timestamp}");
                 // Retry the API call with refreshed token
                 $devices = $smartAPI->list_devices();
-                error_log("json.php: REFRESH SUCCESS - API call succeeded with new token");
+                error_log("json.php: REFRESH SUCCESS - API call succeeded with refreshed token for api_key=" . substr($api_key ?? 'N/A', 0, 8) . "...");
             } else {
                 error_log("json.php: REFRESH FAILED - refreshAccessToken returned false");
                 throw new Exception("Token refresh failed", 401);
             }
         } catch (Exception $refresh_error) {
-            error_log("json.php: REFRESH ERROR - Exception: " . $refresh_error->getMessage());
+            error_log("json.php: REFRESH ERROR - AUTH_METHOD=oauth_api_key, api_key=" . substr($api_key ?? 'N/A', 0, 8) . "..., Exception: " . $refresh_error->getMessage());
             error_log("json.php: REFRESH ERROR - Code: " . $refresh_error->getCode());
             error_log("json.php: REFRESH ERROR - Time: {$timestamp}");
             
@@ -601,7 +622,7 @@ try {
         }
     } else {
         // Non-401 error or no refresh token available
-        error_log("json.php...." . $e->getMessage() . "..." . $e->getCode());
+        error_log("json.php: API_ERROR - AUTH_METHOD=" . ($api_key ? "oauth_api_key" : "personal_token") . ", key=" . substr($api_key ?? $user_token ?? 'N/A', 0, 8) . "..., error=" . $e->getMessage() . ", code=" . $e->getCode());
         header('HTTP/1.1 '.$e->getCode() . ' ' . $e->getMessage());
         echo json_encode(Array("error_message" => $e->getMessage(), "error_code" => $e->getCode(), "devices" => []));
         exit;
@@ -616,6 +637,109 @@ $tv->volume(10);
 
 header('Content-Type: application/json; charset=utf-8');
 
+// Debug mode: Show all raw device data for development purposes
+if ($debug_mode) {
+    error_log("json.php: DEBUG MODE - Showing all raw device data for development");
+    error_log("json.php: DEBUG START - Found " . count($devices) . " total devices");
+    
+    // Log the full token for debug mode to help identify the user providing the data
+    if ($user_token) {
+        error_log("json.php: DEBUG AUTH - Personal token: " . $user_token);
+    } elseif ($api_key) {
+        error_log("json.php: DEBUG AUTH - OAuth API key: " . $api_key);
+    }
+    
+    $debug_devices = array();
+    if(count($devices) > 0) {
+        foreach ($devices as $device) {
+            // Get all available device information
+            $device_info = $device->info();
+            $debug_device = [
+                'deviceId' => $device_info->deviceId ?? 'unknown',
+                'name' => $device_info->name ?? 'unknown',
+                'label' => $device_info->label ?? 'unknown', 
+                'type' => $device_info->type ?? 'unknown',
+                'manufacturer' => $device_info->manufacturerName ?? 'unknown',
+                'model' => $device_info->model ?? 'unknown',
+                'deviceTypeName' => $device_info->deviceTypeName ?? 'unknown',
+                'presentationId' => $device_info->presentationId ?? 'unknown',
+                'raw_info' => $device_info, // Complete raw device info
+                'supported_methods' => [],
+                'capabilities' => []
+            ];
+            
+            // Check what methods are available on this device
+            $methods_to_check = ['get_value', 'get_level', 'power_on', 'power_off', 'set_level', 'volume'];
+            foreach ($methods_to_check as $method) {
+                if (method_exists($device, $method)) {
+                    $debug_device['supported_methods'][] = $method;
+                }
+            }
+            
+            // Try to get capabilities if available
+            if (isset($device_info->components)) {
+                foreach ($device_info->components as $component) {
+                    if (isset($component->capabilities)) {
+                        foreach ($component->capabilities as $capability) {
+                            $debug_device['capabilities'][] = [
+                                'id' => $capability->id ?? 'unknown',
+                                'version' => $capability->version ?? 'unknown'
+                            ];
+                        }
+                    }
+                }
+            }
+            
+            // Try to get current values if possible
+            try {
+                if (method_exists($device, 'get_value')) {
+                    $debug_device['current_value'] = $device->get_value();
+                }
+            } catch (Exception $e) {
+                $debug_device['current_value'] = 'Error: ' . $e->getMessage();
+            }
+            
+            try {
+                if (method_exists($device, 'get_level')) {
+                    $debug_device['current_level'] = $device->get_level();
+                }
+            } catch (Exception $e) {
+                $debug_device['current_level'] = 'Error: ' . $e->getMessage();
+            }
+            
+            $debug_devices[] = $debug_device;
+            
+            // Log each device's information to the error log for analysis
+            error_log("json.php: DEBUG DEVICE - ID: " . ($device_info->deviceId ?? 'unknown'));
+            error_log("json.php: DEBUG DEVICE - Name: " . ($device_info->name ?? 'unknown'));
+            error_log("json.php: DEBUG DEVICE - Label: " . ($device_info->label ?? 'unknown'));
+            error_log("json.php: DEBUG DEVICE - Type: " . ($device_info->type ?? 'unknown'));
+            error_log("json.php: DEBUG DEVICE - Manufacturer: " . ($device_info->manufacturerName ?? 'unknown'));
+            error_log("json.php: DEBUG DEVICE - Model: " . ($device_info->model ?? 'unknown'));
+            error_log("json.php: DEBUG DEVICE - DeviceTypeName: " . ($device_info->deviceTypeName ?? 'unknown'));
+            error_log("json.php: DEBUG DEVICE - PresentationId: " . ($device_info->presentationId ?? 'unknown'));
+            error_log("json.php: DEBUG DEVICE - Capabilities: " . json_encode($debug_device['capabilities']));
+            error_log("json.php: DEBUG DEVICE - SupportedMethods: " . json_encode($debug_device['supported_methods']));
+            error_log("json.php: DEBUG DEVICE - FullInfo: " . json_encode($device_info));
+            error_log("json.php: DEBUG DEVICE - END");
+        }
+    }
+    
+    error_log("json.php: DEBUG COMPLETE - Logged " . count($debug_devices) . " devices to error log");
+    
+    echo json_encode([
+        "debug_mode" => true,
+        "total_devices" => count($devices),
+        "message" => "This is debug output showing ALL devices before filtering. Share this with the developer to add support for your unsupported devices.",
+        "usage" => "Add ?debug=1 to your URL to see this output",
+        "error_code" => 200,
+        "error_message" => "",
+        "raw_devices" => $debug_devices
+    ], JSON_PRETTY_PRINT);
+    exit;
+}
+
+// Normal mode: Show only supported devices
 $devices_array = array();
 if(count($devices) > 0)
 {

@@ -1,6 +1,28 @@
-# Garmin Watch SmartThings Integration
+## 🚨 CRITICAL UPDATE: OAuth App Mismatch Issue RESOLVED
 
-This guide explains how users can configure their Garmin watch app to access their SmartThings devices through your web server using **two different authentication methods**.
+**Date**: July 10, 2025  
+**Status**: ✅ ROOT CAUSE IDENTIFIED AND FIXED
+
+### The Problem
+The systematic 24-hour token expiry was caused by **using a non-existent OAuth application**:
+- oauth_tokens.ini referenced Client ID: `083619f0-354e-4cad-9cb3-72d09d249936` ❌ (NOT FOUND)
+- This OAuth app was deleted or never existed in the current account
+- SmartThings couldn't refresh tokens for a non-existent app, causing rapid expiry
+
+### The Solution
+**Fixed by using valid OAuth application discovered via SmartThings CLI**:
+- Valid OAuth App Client ID: `c9e1e510-e211-4a61-8530-7923918dc3ef` ✅ (ACTIVE)
+- Updated oauth_tokens.ini with correct credentials
+- New API key generated: `db675f908c99c2b4...` (working!)
+- 48-hour monitoring started to verify long-term token refresh
+
+### Current Status
+- ✅ OAuth app fix deployed
+- ✅ New API key working (23 devices returned)
+- 🧪 Monitoring in progress to verify 24+ hour stability
+- 🎯 Critical test: July 11, 22:40+ (24-hour mark)
+
+---
 
 ## 🏗️ **System Architecture Overview**
 
@@ -802,7 +824,7 @@ try {
 - **Refresh tokens**: Should last 6-12 months or longer
 
 **If your refresh token expired after only 24 hours, possible causes:**
-1. **SmartThings OAuth app configuration issue** - Check Developer Console
+1. **SmartThings OAuth app configuration issue** - Check Developer Console at https://developer.smartthings.com/workspace
 2. **Refresh token was revoked** - User security action or account changes
 3. **OAuth app credentials changed/expired** - Verify app is still active
 4. **SmartThings account security action** - Password change, 2FA, etc.
@@ -820,7 +842,7 @@ curl 'https://yourserver.com/weather/smartthings/json.php?api_key=YOUR_NEW_API_K
 ```
 
 **If the new API key also fails after 24 hours:**
-- Check your SmartThings Developer Console for app status
+- Check your SmartThings Developer Console at https://developer.smartthings.com/workspace for app status, warnings, or rate limiting
 - Verify OAuth app hasn't been disabled or modified
 - Consider recreating the OAuth app with fresh credentials
 - Contact SmartThings support if the issue persists

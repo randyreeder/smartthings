@@ -260,6 +260,13 @@ class SmartThingsAPI {
     private function getDeviceObject($device) {
         $generic_device = new Generic($device);
         $device_obj = $generic_device;
+        
+        // Check for Tedee lock first (using static method)
+        if (Tedee::isDeviceType($device)) {
+            $device_obj = new Tedee($device);
+            return $device_obj;
+        }
+        
         switch($device['name']) {
             case 'Samsung OCF TV':
                 $device_obj = new TV($device);
