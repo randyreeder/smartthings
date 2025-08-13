@@ -61,16 +61,6 @@ class Tedee extends Generic implements Device
     }
     
     /**
-     * Get lock level (for compatibility with dimmer-like interfaces)
-     * Returns: 100 for locked, 0 for unlocked
-     */
-    public function get_level(): int
-    {
-        $value = $this->get_value();
-        return ($value === 'locked') ? 100 : 0;
-    }
-    
-    /**
      * Get battery level
      */
     public function get_battery(): int
@@ -164,26 +154,6 @@ class Tedee extends Generic implements Device
             default:
                 error_log("Tedee::set_value() - Invalid value: " . $value . " (expected: lock/unlock)");
                 return false;
-        }
-    }
-    
-    /**
-     * Set lock level (for compatibility with dimmer-like interfaces)
-     * For locks: 0 = unlocked, 100 = locked, other values map to closest state
-     */
-    public function set_level($level): bool
-    {
-        $level = intval($level);
-        
-        error_log("Tedee::set_level() called with level: " . $level);
-        
-        // Map level values to lock states
-        if ($level >= 50) {
-            error_log("Tedee::set_level() - Level $level >= 50, calling lock()");
-            return $this->lock();    // 50-100 = locked
-        } else {
-            error_log("Tedee::set_level() - Level $level < 50, calling unlock()");
-            return $this->unlock();  // 0-49 = unlocked
         }
     }
 }
