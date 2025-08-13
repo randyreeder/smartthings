@@ -115,9 +115,9 @@ if (!$device_id || $value === null) {
 
 // Log control attempts for debugging
 if ($user_token) {
-    error_log("set.php..token:" . substr($user_token, 0, 8) . "..device_id:" . $device_id . "..value:" . $value);
+    error_log("set.php..token:" . substr($user_token, 0, 8) . "..device_id:" . $device_id . "..value:" . $value . "..what:" . $what);
 } elseif ($api_key) {
-    error_log("set.php..api_key:" . substr($api_key, 0, 8) . "..device_id:" . $device_id . "..value:" . $value);
+    error_log("set.php..api_key:" . substr($api_key, 0, 8) . "..device_id:" . $device_id . "..value:" . $value . "..what:" . $what);
 }
 
 // Authentication - simplified logic
