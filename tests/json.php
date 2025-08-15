@@ -10,6 +10,67 @@ if (basename($_SERVER['SCRIPT_NAME']) !== basename(__FILE__)) {
 // Disable PHP warnings and deprecation notices for clean JSON output
 error_reporting(E_ERROR | E_PARSE);
 
+// Rate limiting protection to prevent "Too many requests" errors
+function checkRateLimit() {
+    $client_ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    $rate_limit_file = "/tmp/smartthings_rate_limit_" . md5($client_ip);
+    $current_time = time();
+    $max_requests_per_minute = 15; // Allow 15 requests per minute per IP
+    $max_requests_per_hour = 200;  // Allow 200 requests per hour per IP
+    
+    // Load existing request history
+    $requests = [];
+    if (file_exists($rate_limit_file)) {
+        $data = json_decode(file_get_contents($rate_limit_file), true);
+        $requests = $data['requests'] ?? [];
+    }
+    
+    // Clean old requests (older than 1 hour)
+    $requests = array_filter($requests, function($time) use ($current_time) {
+        return $time > ($current_time - 3600); // Keep last hour
+    });
+    
+    // Check rate limits
+    $requests_last_minute = array_filter($requests, function($time) use ($current_time) {
+        return $time > ($current_time - 60); // Last 60 seconds
+    });
+    
+    if (count($requests_last_minute) >= $max_requests_per_minute) {
+        header('HTTP/1.1 429 Too Many Requests');
+        header('Retry-After: 60');
+        echo json_encode([
+            "error_code" => 429,
+            "error_message" => "Rate limit exceeded. Maximum {$max_requests_per_minute} requests per minute allowed.",
+            "retry_after" => 60,
+            "help" => "Please reduce request frequency to avoid overloading the server."
+        ]);
+        exit;
+    }
+    
+    if (count($requests) >= $max_requests_per_hour) {
+        header('HTTP/1.1 429 Too Many Requests');
+        header('Retry-After: 3600');
+        echo json_encode([
+            "error_code" => 429,
+            "error_message" => "Hourly rate limit exceeded. Maximum {$max_requests_per_hour} requests per hour allowed.",
+            "retry_after" => 3600,
+            "help" => "Please wait before making more requests."
+        ]);
+        exit;
+    }
+    
+    // Add current request to history
+    $requests[] = $current_time;
+    
+    // Save updated request history
+    file_put_contents($rate_limit_file, json_encode(['requests' => $requests]));
+}
+
+// Apply rate limiting for all requests except setup (to allow users to re-authenticate)
+if (!isset($_REQUEST['setup'])) {
+    checkRateLimit();
+}
+
 // SmartThings Webhook Handler for Lifecycle Events
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $input = file_get_contents('php://input');
