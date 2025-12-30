@@ -123,52 +123,43 @@ class SmartThingsAPI {
         $response = $refresh_client->request('POST', 'oauth/token', [
             'form_params' => [
                 'grant_type' => 'refresh_token',
-                'client_id' => $client_id,
-                'client_secret' => $client_secret,
                 'refresh_token' => $this->refresh_token
-            ]
+            ],
+            'auth' => [$client_id, $client_secret],
         ]);
 
         $code = $response->getStatusCode();
         $response_body = $response->getBody()->getContents();
         
-        // Log refresh attempt details
-        error_log("SmartThingsAPI: REFRESH REQUEST - Client ID: {$client_id}");
-        error_log("SmartThingsAPI: REFRESH REQUEST - Refresh token: " . substr($this->refresh_token, 0, 8) . "...");
-        error_log("SmartThingsAPI: REFRESH RESPONSE - HTTP Code: {$code}");
-        error_log("SmartThingsAPI: REFRESH RESPONSE - Body: " . $response_body);
+        // Log only high-level refresh attempt
+        error_log("SmartThingsAPI: REFRESH ATTEMPT - HTTP Code: {$code}");
         
         if ($code === 200) {
             $body = json_decode($response_body, true);
             if (isset($body['access_token'])) {
-                error_log("SmartThingsAPI: REFRESH SUCCESS - New access token received");
+                error_log("SmartThingsAPI: REFRESH SUCCESS");
                 $this->access_token = $body['access_token'];
                 $this->bearer = $this->access_token;
-                
                 // Update the authorization header
                 $this->request_body['headers']['Authorization'] = 'Bearer ' . $this->bearer;
-                
                 // Update refresh token if provided
                 if (isset($body['refresh_token'])) {
                     $this->refresh_token = $body['refresh_token'];
                 }
-                
                 // Save tokens to file if path provided
                 if (!empty($config_file_path)) {
                     $this->saveTokensToFile($config_file_path);
                 }
-                
                 // Update user token file if available
                 if (!empty($this->user_token_file)) {
                     $this->updateUserTokenFile();
                 }
-                
                 return true;
             } else {
-                error_log("SmartThingsAPI: REFRESH ERROR - Response missing access_token field");
+                error_log("SmartThingsAPI: REFRESH ERROR - No access_token in response");
             }
         } else {
-            error_log("SmartThingsAPI: REFRESH ERROR - HTTP {$code} response");
+            error_log("SmartThingsAPI: REFRESH ERROR - HTTP {$code}");
         }
         
         throw new \Exception('Failed to refresh access token: HTTP ' . $code . ' - ' . $response_body, $code);
@@ -193,19 +184,28 @@ class SmartThingsAPI {
      */
     private function updateUserTokenFile() {
         if (empty($this->user_token_file) || !file_exists($this->user_token_file)) {
+            error_log("SmartThingsAPI: updateUserTokenFile() - Token file missing or not set: " . ($this->user_token_file ?? 'NULL'));
             return false;
         }
-        
+
         $tokens = json_decode(file_get_contents($this->user_token_file), true);
         if ($tokens) {
             $tokens['access_token'] = $this->access_token;
             $tokens['refresh_token'] = $this->refresh_token;
             $tokens['refreshed'] = time();
-            
-            file_put_contents($this->user_token_file, json_encode($tokens));
-            return true;
+
+            $result = file_put_contents($this->user_token_file, json_encode($tokens));
+            if ($result !== false) {
+                error_log("SmartThingsAPI: updateUserTokenFile() - Token file updated: " . $this->user_token_file);
+                error_log("SmartThingsAPI: updateUserTokenFile() - New access_token: " . substr($this->access_token, 0, 8) . "... New refresh_token: " . substr($this->refresh_token, 0, 8) . "...");
+                return true;
+            } else {
+                error_log("SmartThingsAPI: updateUserTokenFile() - Failed to write token file: " . $this->user_token_file);
+            }
+        } else {
+            error_log("SmartThingsAPI: updateUserTokenFile() - Failed to decode token file: " . $this->user_token_file);
         }
-        
+
         return false;
     }
 

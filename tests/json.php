@@ -149,15 +149,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Secure configuration: Use absolute paths outside web root for production
 // Environment variables (most secure) or absolute paths outside web root
-$is_production = !((strpos(__DIR__, '/Users/') === 0 || strpos(__DIR__, '/home/') === 0 && !strpos(__DIR__, '/home1/')));
+$is_production = !(strpos(__DIR__, '/Users/') === 0);
 
 if ($is_production) {
     // Production paths (outside web root) - UPDATE THESE FOR YOUR SERVER
-    $home_dir = getenv('HOME') ?: '/home1/rreeder';
-    $config_file = getenv('SMARTTHINGS_CONFIG_FILE') ?: $home_dir . '/smartthings_config/oauth_tokens.ini';
-    $tokens_dir = getenv('SMARTTHINGS_TOKEN_DIR') ?: $home_dir . '/smartthings_config/tokens';
-    $autoload_file = getenv('SMARTTHINGS_VENDOR_PATH') ?: $home_dir . '/git/smartthings/vendor/autoload.php';
-    $smartthings_src = getenv('SMARTTHINGS_SRC_PATH') ?: $home_dir . '/git/smartthings/src/smartThings';
+    $www_dir = '/var/www';
+    $config_file = getenv('SMARTTHINGS_CONFIG_FILE') ?: $www_dir . '/smartthings_config/oauth_tokens.ini';
+    $tokens_dir = getenv('SMARTTHINGS_TOKEN_DIR') ?: $www_dir . '/smartthings_config/tokens';
+    $autoload_file = getenv('SMARTTHINGS_VENDOR_PATH') ?: $www_dir . '/lib/git/smartthings/vendor/autoload.php';
+    $smartthings_src = getenv('SMARTTHINGS_SRC_PATH') ?: $www_dir . '/lib/git/smartthings/src/smartThings';
 } else {
     // Local development paths (relative)
     $config_file = __DIR__ . '/../oauth_tokens.ini';
@@ -640,7 +640,8 @@ try {
         
         error_log("json.php: REFRESH ATTEMPT - Time: {$timestamp}");
         error_log("json.php: REFRESH ATTEMPT - AUTH_METHOD=oauth_api_key, api_key=" . substr($api_key ?? 'N/A', 0, 8) . "...");
-        error_log("json.php: REFRESH ATTEMPT - Refresh token: " . substr($refresh_token, 0, 8) . "...");
+        error_log("json.php: REFRESH ATTEMPT - Refresh token (prefix): " . substr($refresh_token, 0, 8) . "...");
+        error_log("json.php: REFRESH ATTEMPT - Refresh token (full): " . $refresh_token);
         error_log("json.php: REFRESH ATTEMPT - Original error: " . $e->getMessage());
         
         try {
