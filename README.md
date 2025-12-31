@@ -1,63 +1,41 @@
-# PHP - Samsung Smart Things API
 
-This library is a simple PHP wrapper for the Smart Things API with support for both Personal Access Tokens and OAuth authentication.
+# SmartThings PHP API Library
+
+>This project provides a robust PHP wrapper for the Samsung SmartThings API, supporting both Personal Access Token and OAuth authentication, with optional Garmin ConnectIQ integration.
 
 ## Features
+- **Multiple Authentication Methods**: Personal Access Token (simple) or OAuth (secure, multi-user)
+- **Garmin Watch Integration**: Seamless support for Garmin ConnectIQ apps
+- **Environment Detection**: Works in local and production environments
+- **Device Control**: Manage switches, dimmers, TVs, Ecobee, and more
 
-- **Multiple Authentication Methods**: Personal Access Token (simple) or OAuth (secure)
-- **Garmin Watch Integration**: Optimized for Garmin ConnectIQ apps
-- **Environment Detection**: Works in both local development and production
-- **Device Control**: Control switches, dimmers, and other SmartThings devices
+## Quick Start
+Install via Composer:
 
-## Supported Devices:
- - TV
- - Ecobee
- - Switches and Dimmers
- - Generic devices
+```bash
+composer require giannisftaras/smartthings
+```
 
-## Installation:
+## Authentication Overview
+- **Personal Access Token**: Easiest for personal/testing use
+- **OAuth with API Key**: Recommended for production and multi-user apps
 
-You can install the library using `composer` or by simply downloading this repository and including it in your project.
+See [SETUP_AND_SECURITY.md](SETUP_AND_SECURITY.md) for detailed setup, configuration, and security best practices.
 
-Installation using `composer`:
+## Secure Deployment
+For production, move all sensitive files outside the web root and use environment variables for credentials. See [SETUP_AND_SECURITY.md](SETUP_AND_SECURITY.md) for directory structure, deployment scripts, and .htaccess configuration.
 
-    composer require giannisftaras/smartthings
+## Garmin Integration
+For Garmin ConnectIQ integration instructions, see [GARMIN_INTEGRATION.md](GARMIN_INTEGRATION.md).
 
-## Production Deployment
+## Supported Devices
+- Samsung TVs
+- Ecobee
+- Switches and Dimmers
+- Generic SmartThings devices
 
-For production deployment with maximum security:
-
-1. **Run the secure deployment script**:
-   ```bash
-   sudo ./deploy-secure.sh
-   ```
-
-2. **Use environment variables for credentials** (recommended):
-   ```bash
-   export SMARTTHINGS_CLIENT_ID="your_client_id"
-   export SMARTTHINGS_CLIENT_SECRET="your_client_secret"
-   export SMARTTHINGS_REDIRECT_URI="https://yourdomain.com/smartthings/json.php"
-   ```
-
-3. **Or use config files outside web root**:
-   - Config files: `/var/www/config/bearer.ini`
-   - Token storage: `/var/www/tokens/`
-   - Source code: `/var/www/src/` and `/var/www/vendor/`
-
-See `SECURE_DEPLOYMENT.md` for complete deployment instructions.
-
-## Authentication Methods
-
-### Method 1: Personal Access Token (Simple)
-```php
-<?php
-require __DIR__ . '/../vendor/autoload.php';
-use SmartThings\SmartThingsAPI; 
-
-// Create a Personal Access Token at https://account.smartthings.com/tokens
-$userBearerToken = 'YOUR_PERSONAL_ACCESS_TOKEN';
-$smartAPI = new SmartThingsAPI($userBearerToken);
-$devices = $smartAPI->list_devices(); 
+## License
+MIT
 
 $tv = $devices[0];
 $tv->power_on();
