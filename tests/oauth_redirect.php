@@ -2,7 +2,7 @@
 // This is a simple PHP script to facilitate OAuth redirection to SmartThings from a Garmin watch to a browser
 // to prevent it from opening the smartthings app instead of authenticating via OAuth in the browser.
 // It accepts a 'target' parameter in the query string which is the OAuth URL to redirect to.
-// The script displays a message and provides a link to continue, along with an automatic redirect after a short delay.
+// The script displays a message and provides a link to continue.
 
 // Example: oauth_redirect.php?target=https://account.smartthings.com/oauth/authorize&state=xyz
 
@@ -24,21 +24,13 @@ if (!$target) {
 <head>
     <meta charset="UTF-8">
     <title>Continue to SmartThings OAuth</title>
-    <!-- Delayed redirect after 5 seconds -->
-    <meta http-equiv="refresh" content="5;url=<?php echo htmlspecialchars($target); ?>">
 </head>
 <body>
     <h2>Continue to SmartThings OAuth</h2>
     <p>
-        You are about to authenticate with SmartThings.<br>
-        <strong>If you are not redirected automatically,</strong> <a href="<?php echo htmlspecialchars($target); ?>">click here to continue</a>.<br>
+        Open this link to authenticate with SmartThings.<br>
+        <a href="<?php echo htmlspecialchars($target); ?>">click here to continue</a>.<br>
         <em>For best results, open this page in your browser.</em>
     </p>
-    <script type="text/javascript">
-        // Optional: Delayed JS redirect as backup
-        setTimeout(function() {
-            window.location.href = "<?php echo htmlspecialchars($target); ?>";
-        }, 5000);
-    </script>
 </body>
 </html>
