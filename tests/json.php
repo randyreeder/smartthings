@@ -631,6 +631,25 @@ function handleSessionPoll($session_id) {
     }
 }
 try {
+    // Preemptively refresh token if older than 12 hours (for OAuth/api_key usage only)
+    if (isset($api_key) && $api_key) {
+        $tokens_file = $tokens_dir . '/' . hash('sha256', $api_key) . '.json';
+        if (file_exists($tokens_file)) {
+            $tokens = json_decode(file_get_contents($tokens_file), true);
+            if (isset($tokens['created']) && isset($tokens['refresh_token'])) {
+                $token_age = time() - $tokens['created'];
+                if ($token_age > 43200) { // 12 hours
+                    $client_creds = getClientCredentials();
+                    $refreshed = $smartAPI->refreshAccessToken($client_creds['client_id'], $client_creds['client_secret']);
+                    if ($refreshed) {
+                        error_log("json.php: PREEMPTIVE REFRESH - Token was older than 12 hours, refreshed before API call.");
+                    } else {
+                        error_log("json.php: PREEMPTIVE REFRESH FAILED - Could not refresh token.");
+                    }
+                }
+            }
+        }
+    }
     $devices = $smartAPI->list_devices();
 } catch (Exception $e) {
     // If 401 Unauthorized and we have refresh token, try to refresh and retry
