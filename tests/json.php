@@ -2,7 +2,6 @@
 
 // Security: Prevent direct web access to this script if accessed as a file
 if (basename($_SERVER['SCRIPT_NAME']) !== basename(__FILE__)) {
-    // This is being accessed through directory traversal or file inclusion
     http_response_code(403);
     exit('Access denied');
 }
@@ -10,10 +9,19 @@ if (basename($_SERVER['SCRIPT_NAME']) !== basename(__FILE__)) {
 // Disable PHP warnings and deprecation notices for clean JSON output
 error_reporting(E_ERROR | E_PARSE);
 
+// Ensure tokens_dir is set before any usage
+$is_production = !(strpos(__DIR__, '/Users/') === 0);
+if ($is_production) {
+    $www_dir = '/var/www';
+    $tokens_dir = getenv('SMARTTHINGS_TOKEN_DIR') ?: $www_dir . '/smartthings_config/tokens';
+} else {
+    $tokens_dir = __DIR__ . '/../user_tokens';
+}
+$tokens_dir = $_ENV['SMARTTHINGS_TOKENS_DIR'] ?? $_SERVER['SMARTTHINGS_TOKENS_DIR'] ?? $tokens_dir;
+
 // New: Retrieve stored OAuth URL by session ID (must run before any authentication logic)
 if (isset($_GET['get_auth_url']) && $_GET['get_auth_url'] == '1') {
     $session_id = $_GET['session'] ?? null;
-    global $tokens_dir;
     if (!$session_id) {
         header('Content-Type: application/json');
         echo json_encode(["error" => "Missing required parameters"]);
