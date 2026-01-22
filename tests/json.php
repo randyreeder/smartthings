@@ -10,6 +10,33 @@ if (basename($_SERVER['SCRIPT_NAME']) !== basename(__FILE__)) {
 // Disable PHP warnings and deprecation notices for clean JSON output
 error_reporting(E_ERROR | E_PARSE);
 
+// New: Retrieve stored OAuth URL by session ID (must run before any authentication logic)
+if (isset($_GET['get_auth_url']) && $_GET['get_auth_url'] == '1') {
+    $session_id = $_GET['session'] ?? null;
+    global $tokens_dir;
+    if (!$session_id) {
+        header('Content-Type: application/json');
+        echo json_encode(["error" => "Missing required parameters"]);
+        exit;
+    }
+    $session_file = $tokens_dir . '/session_' . hash('sha256', $session_id) . '.json';
+    if (!file_exists($session_file)) {
+        header('Content-Type: application/json');
+        echo json_encode(["error" => "Session not found or expired"]);
+        exit;
+    }
+    $session_data = json_decode(file_get_contents($session_file), true);
+    if (isset($session_data['auth_url']) && !empty($session_data['auth_url'])) {
+        header('Content-Type: application/json');
+        echo json_encode(["auth_url" => $session_data['auth_url']]);
+        exit;
+    } else {
+        header('Content-Type: application/json');
+        echo json_encode(["error" => "auth_url not found for session"]);
+        exit;
+    }
+}
+
 // Rate limiting protection to prevent "Too many requests" errors
 function checkRateLimit() {
     $client_ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
@@ -853,30 +880,3 @@ if(count($devices) > 0)
     }
 }
 echo json_encode(Array("error_code" => 200, "error_message" => "", "devices" => $devices_array), JSON_PRETTY_PRINT);
-
-// New: Retrieve stored OAuth URL by session ID
-if (isset($_GET['get_auth_url']) && $_GET['get_auth_url'] == '1') {
-    $session_id = $_GET['session'] ?? null;
-    global $tokens_dir;
-    if (!$session_id) {
-        header('Content-Type: application/json');
-        echo json_encode(["error" => "Missing required parameters"]);
-        exit;
-    }
-    $session_file = $tokens_dir . '/session_' . hash('sha256', $session_id) . '.json';
-    if (!file_exists($session_file)) {
-        header('Content-Type: application/json');
-        echo json_encode(["error" => "Session not found or expired"]);
-        exit;
-    }
-    $session_data = json_decode(file_get_contents($session_file), true);
-    if (isset($session_data['auth_url']) && !empty($session_data['auth_url'])) {
-        header('Content-Type: application/json');
-        echo json_encode(["auth_url" => $session_data['auth_url']]);
-        exit;
-    } else {
-        header('Content-Type: application/json');
-        echo json_encode(["error" => "auth_url not found for session"]);
-        exit;
-    }
-}
