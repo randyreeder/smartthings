@@ -283,9 +283,43 @@ if ($user_token) {
     }
     handleOAuthSetup($user_id);
     
-// Method 2: OAuth callback
-} elseif (isset($_GET['code']) && isset($_GET['state'])) {
-    // Extract user_id from state parameter
+// Method 2: OAuth callback or error
+} elseif ((isset($_GET['code']) && isset($_GET['state'])) || isset($_GET['error'])) {
+    // If SmartThings returned an error, show it clearly
+    if (isset($_GET['error'])) {
+        $error = $_GET['error'];
+        $error_description = $_GET['error_description'] ?? '';
+        $state = $_GET['state'] ?? '';
+        $user_id = 'unknown_user';
+        if ($state) {
+            $state_data = json_decode(base64_decode($state), true);
+            $user_id = $state_data['user_id'] ?? 'unknown_user';
+        }
+        error_log("OAuth Callback ERROR: session_id=$user_id, error=$error, description=$error_description, state=" . substr($state, 0, 20));
+        header('Content-Type: text/html; charset=utf-8');
+        echo "<!DOCTYPE html>
+<html>
+<head><title>Authorization Error</title></head>
+<body style='font-family: Arial; max-width: 600px; margin: 50px auto; padding: 20px;'>
+    <h2>❌ Authorization Failed</h2>
+    <div style='background: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; margin: 20px 0; border-radius: 5px;'>
+        <strong>Error from SmartThings:</strong><br>
+        <strong>Type:</strong> " . htmlspecialchars($error) . "<br>
+        <strong>Description:</strong> " . htmlspecialchars($error_description) . "<br>
+        <strong>User ID:</strong> " . htmlspecialchars($user_id) . "<br>
+        <strong>State:</strong> " . htmlspecialchars($state) . "<br>
+    </div>
+    <p>
+        <a href='/tests/json.php?setup=1&user_id=" . urlencode($user_id) . "' 
+           style='background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;'>
+           🔄 Try Again
+        </a>
+    </p>
+</body>
+</html>";
+        exit;
+    }
+    // Extract user_id from state parameter for successful callback
     $state_data = json_decode(base64_decode($_GET['state']), true);
     $user_id = $state_data['user_id'] ?? 'unknown_user';
     handleOAuthCallback($user_id, $_GET['code']);
@@ -422,19 +456,18 @@ function handleSetupJSON($user_id) {
 // Handle OAuth callback
 function handleOAuthCallback($user_id, $auth_code) {
     // OAuth Callback logging
-    $error = $_GET['error'] ?? '';
     $state = $_GET['state'] ?? '';
-    error_log("OAuth Callback: session_id=$user_id, code=" . substr($auth_code, 0, 8) . "..., state=" . substr($state, 0, 20) . "..., error=$error");
-    
+    error_log("OAuth Callback: session_id=$user_id, code=" . substr($auth_code, 0, 8) . "..., state=" . substr($state, 0, 20));
+
     $token_data = [
         'grant_type' => 'authorization_code',
         'redirect_uri' => REDIRECT_URI,  // Exact match with what was sent
         'code' => $auth_code
     ];
-    
+
     // SmartThings requires Basic Auth for client credentials
     $auth_header = 'Basic ' . base64_encode(CLIENT_ID . ':' . CLIENT_SECRET);
-    
+
     $ch = curl_init('https://api.smartthings.com/oauth/token');
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_POST, true);
@@ -443,27 +476,27 @@ function handleOAuthCallback($user_id, $auth_code) {
         'Content-Type: application/x-www-form-urlencoded',
         'Authorization: ' . $auth_header
     ]);
-    
+
     $response = curl_exec($ch);
     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $curl_error = curl_error($ch);
     curl_close($ch);
-    
+
     // Add debugging info
     error_log("OAuth Token Exchange Debug:");
     error_log("HTTP Code: " . $http_code);
     error_log("Response: " . $response);
     error_log("cURL Error: " . $curl_error);
     error_log("Request Data: " . print_r($token_data, true));
-    
+
     if ($http_code === 200) {
         $tokens = json_decode($response, true);
-        
+
         // OAuth Token Exchange Success logging
         error_log("Token Exchange SUCCESS: session_id=$user_id, access_token=" . substr($tokens['access_token'], 0, 8) . "..., refresh_token=" . substr($tokens['refresh_token'], 0, 8) . "...");
-        
+
         $api_key = saveUserTokens($user_id, $tokens['access_token'], $tokens['refresh_token']);
-        
+
         header('Content-Type: text/html; charset=utf-8');
         echo "<!DOCTYPE html>
 <html>
