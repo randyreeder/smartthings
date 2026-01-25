@@ -54,14 +54,9 @@ if (!$target) {
     <h2>Continue to SmartThings OAuth</h2>
     <p>
         You are about to authenticate with SmartThings.<br>
-        <strong>If you are not redirected automatically,</strong> <a id="manual-link" href="<?php echo htmlspecialchars($target); ?>">click here to continue</a>.<br>
+        Please <a id="manual-link" href="<?php echo htmlspecialchars($target); ?>">click here to continue</a>.<br>
         <em>For best results, open this page in your browser.</em>
     </p>
-    <script type="text/javascript">
-        // Reliable JS redirect
-        setTimeout(function() {
-            window.location.href = document.getElementById('manual-link').href;
-        }, 2000);
-    </script>
+    <!-- Automatic JavaScript redirect removed. User must click the link to proceed. -->
 </body>
 </html>
