@@ -1,3 +1,4 @@
+
 <?php
 
 // Security: Prevent direct web access to this script if accessed as a file
@@ -729,23 +730,20 @@ try {
     }
     $devices = $smartAPI->list_devices();
 } catch (Exception $e) {
-    // If 401 Unauthorized and we have refresh token, try to refresh and retry
-    if ($e->getCode() === 401 && $smartAPI->getRefreshToken()) {
+    error_log("json.php: TOP-LEVEL CATCH BLOCK: Exception caught: " . $e->getMessage());
+    // If 401 Unauthorized OR 400 Bad Request and we have refresh token, handle as refresh failure
+    if (($e->getCode() === 401 || $e->getCode() === 400) && $smartAPI->getRefreshToken()) {
         $refresh_token = $smartAPI->getRefreshToken();
         $timestamp = date('Y-m-d H:i:s');
-        
         error_log("json.php: REFRESH ATTEMPT - Time: {$timestamp}");
         error_log("json.php: REFRESH ATTEMPT - AUTH_METHOD=oauth_api_key, api_key=" . substr($api_key ?? 'N/A', 0, 8) . "...");
         error_log("json.php: REFRESH ATTEMPT - Refresh token (prefix): " . substr($refresh_token, 0, 8) . "...");
         error_log("json.php: REFRESH ATTEMPT - Refresh token (full): " . $refresh_token);
         error_log("json.php: REFRESH ATTEMPT - Original error: " . $e->getMessage());
-        
         try {
             $client_creds = getClientCredentials();
             error_log("json.php: REFRESH ATTEMPT - Client ID: " . $client_creds['client_id']);
-            
             $refreshed = $smartAPI->refreshAccessToken($client_creds['client_id'], $client_creds['client_secret']);
-            
             if ($refreshed) {
                 error_log("json.php: REFRESH SUCCESS - AUTH_METHOD=oauth_api_key, api_key=" . substr($api_key ?? 'N/A', 0, 8) . "..., new_access_token obtained at {$timestamp}");
                 // Retry the API call with refreshed token
@@ -753,21 +751,58 @@ try {
                 error_log("json.php: REFRESH SUCCESS - API call succeeded with refreshed token for api_key=" . substr($api_key ?? 'N/A', 0, 8) . "...");
             } else {
                 error_log("json.php: REFRESH FAILED - refreshAccessToken returned false");
-                throw new Exception("Token refresh failed", 401);
+                // Compose a standard error response for failed refresh
+                header('HTTP/1.1 401 Unauthorized');
+                $refresh_error_message = "Token refresh failed";
+                // Always extract error details from the Exception message
+                $exception_message = $e->getMessage();
+                error_log("json.php: REFRESH FAILED - Exception message: " . $exception_message);
+                $error_details = null;
+                if (preg_match('/\{.*\}/', $exception_message, $matches)) {
+                    $error_details = json_decode($matches[0], true);
+                }
+                $response = [
+                    "error_message" => "Authentication expired. Please complete OAuth setup again.",
+                    "error_code" => $e->getCode(),
+                    "devices" => [],
+                    "setup_url" => "/json.php?setup=1",
+                    "debug" => "Token refresh failed: $exception_message",
+                    "refresh_details" => [
+                        "timestamp" => $timestamp,
+                        "api_key_prefix" => substr($api_key ?? 'N/A', 0, 8),
+                        "refresh_token_prefix" => substr($refresh_token, 0, 8),
+                        "client_id" => $client_creds['client_id'] ?? 'N/A',
+                        "error_code" => $e->getCode()
+                    ]
+                ];
+                if ($error_details && is_array($error_details)) {
+                    if (isset($error_details['error'])) {
+                        $response['error'] = $error_details['error'];
+                    }
+                    if (isset($error_details['error_description'])) {
+                        $response['error_description'] = $error_details['error_description'];
+                    }
+                }
+                echo json_encode($response);
+                exit;
             }
         } catch (Exception $refresh_error) {
             error_log("json.php: REFRESH ERROR - AUTH_METHOD=oauth_api_key, api_key=" . substr($api_key ?? 'N/A', 0, 8) . "..., Exception: " . $refresh_error->getMessage());
             error_log("json.php: REFRESH ERROR - Code: " . $refresh_error->getCode());
             error_log("json.php: REFRESH ERROR - Time: {$timestamp}");
-            
-            // Return original error or refresh error
             header('HTTP/1.1 401 Unauthorized');
-            echo json_encode([
+            $exception_message = $refresh_error->getMessage();
+            error_log("json.php: REFRESH ERROR - Exception message: " . $exception_message);
+            $error_details = null;
+            if (preg_match('/\{.*\}/', $exception_message, $matches)) {
+                $error_details = json_decode($matches[0], true);
+            }
+            $response = [
                 "error_message" => "Authentication expired. Please complete OAuth setup again.",
-                "error_code" => 401,
+                "error_code" => $refresh_error->getCode(),
                 "devices" => [],
                 "setup_url" => "/json.php?setup=1",
-                "debug" => "Token refresh failed: " . $refresh_error->getMessage(),
+                "debug" => "Token refresh failed: $exception_message",
                 "refresh_details" => [
                     "timestamp" => $timestamp,
                     "api_key_prefix" => substr($api_key ?? 'N/A', 0, 8),
@@ -775,7 +810,16 @@ try {
                     "client_id" => $client_creds['client_id'] ?? 'N/A',
                     "error_code" => $refresh_error->getCode()
                 ]
-            ]);
+            ];
+            if ($error_details && is_array($error_details)) {
+                if (isset($error_details['error'])) {
+                    $response['error'] = $error_details['error'];
+                }
+                if (isset($error_details['error_description'])) {
+                    $response['error_description'] = $error_details['error_description'];
+                }
+            }
+            echo json_encode($response);
             exit;
         }
     } else {
