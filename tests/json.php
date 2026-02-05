@@ -254,6 +254,7 @@ $setup_mode = $_GET['setup'] ?? null; // Setup mode stays GET-only
 $user_id = $_GET['user_id'] ?? null; // Optional for setup mode
 $poll_session = $_GET['poll'] ?? null; // New: Poll for API key by session ID
 $debug_mode = $_GET['debug'] ?? null; // Debug mode to show all raw device data
+$show_all = $_GET['show_all'] ?? null; // Show all devices including unsupported ones
 
 // Log authentication attempts for debugging
 if ($user_token) {
@@ -937,6 +938,65 @@ if ($debug_mode) {
         "error_code" => 200,
         "error_message" => "",
         "raw_devices" => $debug_devices
+    ], JSON_PRETTY_PRINT);
+    exit;
+}
+
+// Show all mode: Include all devices (even unsupported ones)
+if ($show_all) {
+    error_log("json.php: SHOW_ALL MODE - Including all devices regardless of support status");
+    
+    $all_devices = array();
+    if(count($devices) > 0) {
+        foreach ($devices as $device) {
+            $device_info = $device->info();
+            $device_data = array(
+                'id' => $device_info->deviceId ?? 'unknown',
+                'name' => $device_info->name ?? 'unknown',
+                'label' => $device_info->label ?? 'unknown',
+                'type' => $device_info->type ?? 'unknown',
+                'manufacturer' => $device_info->manufacturerName ?? 'unknown',
+                'model' => $device_info->model ?? 'unknown',
+                'deviceTypeName' => $device_info->deviceTypeName ?? 'unknown'
+            );
+            
+            // Try to get value if method exists
+            if(method_exists($device, 'get_value')) {
+                try {
+                    $device_data['value'] = $device->get_value();
+                    $device_data['supported'] = true;
+                } catch (Exception $e) {
+                    $device_data['value'] = null;
+                    $device_data['supported'] = false;
+                    $device_data['error'] = $e->getMessage();
+                }
+            } else {
+                $device_data['value'] = null;
+                $device_data['supported'] = false;
+            }
+            
+            // Try to get level if method exists
+            if(method_exists($device, 'get_level')) {
+                try {
+                    $device_data['level'] = $device->get_level();
+                } catch (Exception $e) {
+                    $device_data['level'] = null;
+                }
+            }
+            
+            $all_devices[] = $device_data;
+        }
+    }
+    
+    error_log("json.php: SHOW_ALL MODE - Returning " . count($all_devices) . " total devices (supported + unsupported)");
+    
+    echo json_encode([
+        "show_all_mode" => true,
+        "total_devices" => count($all_devices),
+        "message" => "Showing all devices including unsupported ones. Set show_all=0 to see only supported devices.",
+        "error_code" => 200,
+        "error_message" => "",
+        "devices" => $all_devices
     ], JSON_PRETTY_PRINT);
     exit;
 }
