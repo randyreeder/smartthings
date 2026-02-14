@@ -267,6 +267,12 @@ class SmartThingsAPI {
             return $device_obj;
         }
         
+        // Check for garage door (using static method)
+        if (GarageDoor::isDeviceType($device)) {
+            $device_obj = new GarageDoor($device);
+            return $device_obj;
+        }
+        
         switch($device['name']) {
             case 'Samsung OCF TV':
                 $device_obj = new TV($device);
