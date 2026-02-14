@@ -584,13 +584,33 @@ function loadTokensByApiKey($api_key) {
     $tokens_file = $tokens_dir . '/' . hash('sha256', $api_key) . '.json';
     
     if (!file_exists($tokens_file)) {
-        header('HTTP/1.1 401 Unauthorized');
-        echo json_encode([
-            "error_message" => "Invalid API key. Please complete OAuth setup first.",
-            "error_code" => 401,
-            "devices" => [],
-            "setup_url" => "/json.php?setup=1"
-        ]);
+        error_log("json.php: loadTokensByApiKey FAILED - Token file not found for api_key=" . substr($api_key, 0, 8) . "...");
+        
+        // Check if API key looks valid (64 hex characters) - might just be too early
+        if (preg_match('/^[a-f0-9]{64}$/', $api_key)) {
+            error_log("json.php: loadTokensByApiKey - API key format is valid, may be too early or setup incomplete");
+            header('HTTP/1.1 503 Service Unavailable');
+            header('Retry-After: 3');
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                "error_message" => "Token not ready yet. Please retry in a moment.",
+                "error_code" => 503,
+                "devices" => [],
+                "retry_after" => 3,
+                "setup_url" => "/json.php?setup=1"
+            ], JSON_UNESCAPED_SLASHES);
+        } else {
+            // Invalid API key format
+            error_log("json.php: loadTokensByApiKey - API key format is invalid");
+            header('HTTP/1.1 401 Unauthorized');
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                "error_message" => "Invalid API key. Please complete OAuth setup first.",
+                "error_code" => 401,
+                "devices" => [],
+                "setup_url" => "/json.php?setup=1"
+            ], JSON_UNESCAPED_SLASHES);
+        }
         exit;
     }
     
@@ -598,16 +618,19 @@ function loadTokensByApiKey($api_key) {
     
     // Verify the API key matches (additional security check)
     if (!isset($tokens['api_key']) || $tokens['api_key'] !== $api_key) {
+        error_log("json.php: loadTokensByApiKey FAILED - API key mismatch for api_key=" . substr($api_key, 0, 8) . "...");
         header('HTTP/1.1 403 Forbidden');
+        header('Content-Type: application/json; charset=utf-8');
         echo json_encode([
             "error_message" => "Invalid API key.",
             "error_code" => 403,
             "devices" => [],
             "help" => "Use the API key provided during OAuth setup"
-        ]);
+        ], JSON_UNESCAPED_SLASHES);
         exit;
     }
     
+    error_log("json.php: loadTokensByApiKey SUCCESS - Loaded tokens for api_key=" . substr($api_key, 0, 8) . "..., token_age=" . (time() - ($tokens['created'] ?? 0)) . "s");
     return new SmartThings\SmartThingsAPI($tokens['access_token'], $tokens['refresh_token'], getClientCredentials()['client_id'], getClientCredentials()['client_secret'], $tokens_file);
 }
 
@@ -736,6 +759,32 @@ try {
     if (($e->getCode() === 401 || $e->getCode() === 400) && $smartAPI->getRefreshToken()) {
         $refresh_token = $smartAPI->getRefreshToken();
         $timestamp = date('Y-m-d H:i:s');
+        
+        // Check token age - don't attempt refresh for very new tokens (< 60 seconds)
+        // This prevents refresh attempts when SmartThings needs time to propagate new tokens
+        if (isset($api_key) && $api_key) {
+            $tokens_file = $tokens_dir . '/' . hash('sha256', $api_key) . '.json';
+            if (file_exists($tokens_file)) {
+                $tokens = json_decode(file_get_contents($tokens_file), true);
+                if (isset($tokens['created'])) {
+                    $token_age = time() - $tokens['created'];
+                    if ($token_age < 60) {
+                        error_log("json.php: TOKEN TOO NEW - Token is only {$token_age}s old, SmartThings may need more time to propagate. Not attempting refresh.");
+                        header('HTTP/1.1 503 Service Unavailable');
+                        header('Retry-After: 5');
+                        header('Content-Type: application/json; charset=utf-8');
+                        echo json_encode([
+                            "error_message" => "Token is very new. Please retry in a moment.",
+                            "error_code" => 503,
+                            "devices" => [],
+                            "retry_after" => 5
+                        ], JSON_UNESCAPED_SLASHES);
+                        exit;
+                    }
+                }
+            }
+        }
+        
         error_log("json.php: REFRESH ATTEMPT - Time: {$timestamp}");
         error_log("json.php: REFRESH ATTEMPT - AUTH_METHOD=oauth_api_key, api_key=" . substr($api_key ?? 'N/A', 0, 8) . "...");
         error_log("json.php: REFRESH ATTEMPT - Refresh token (prefix): " . substr($refresh_token, 0, 8) . "...");
@@ -752,75 +801,36 @@ try {
                 error_log("json.php: REFRESH SUCCESS - API call succeeded with refreshed token for api_key=" . substr($api_key ?? 'N/A', 0, 8) . "...");
             } else {
                 error_log("json.php: REFRESH FAILED - refreshAccessToken returned false");
-                // Compose a standard error response for failed refresh
+                // Compose a simplified error response for failed refresh
                 header('HTTP/1.1 401 Unauthorized');
-                $refresh_error_message = "Token refresh failed";
-                // Always extract error details from the Exception message
                 $exception_message = $e->getMessage();
                 error_log("json.php: REFRESH FAILED - Exception message: " . $exception_message);
-                $error_details = null;
-                if (preg_match('/\{.*\}/', $exception_message, $matches)) {
-                    $error_details = json_decode($matches[0], true);
-                }
-                $response = [
-                    "error_message" => "Authentication expired. Please complete OAuth setup again.",
-                    "error_code" => $e->getCode(),
+                // Log detailed error info but don't send to client (too much data for watch)
+                error_log("json.php: REFRESH FAILED - Timestamp: $timestamp, API key: " . substr($api_key ?? 'N/A', 0, 8) . "..., Refresh token: " . substr($refresh_token, 0, 8) . "...");
+                header('HTTP/1.1 401 Unauthorized');
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode([
+                    "error_message" => "Authentication expired. Please re-authenticate.",
+                    "error_code" => 401,
                     "devices" => [],
-                    "setup_url" => "/json.php?setup=1",
-                    "debug" => "Token refresh failed: $exception_message",
-                    "refresh_details" => [
-                        "timestamp" => $timestamp,
-                        "api_key_prefix" => substr($api_key ?? 'N/A', 0, 8),
-                        "refresh_token_prefix" => substr($refresh_token, 0, 8),
-                        "client_id" => $client_creds['client_id'] ?? 'N/A',
-                        "error_code" => $e->getCode()
-                    ]
-                ];
-                if ($error_details && is_array($error_details)) {
-                    if (isset($error_details['error'])) {
-                        $response['error'] = $error_details['error'];
-                    }
-                    if (isset($error_details['error_description'])) {
-                        $response['error_description'] = $error_details['error_description'];
-                    }
-                }
-                echo json_encode($response);
+                    "setup_url" => "/json.php?setup=1"
+                ], JSON_UNESCAPED_SLASHES);
                 exit;
             }
         } catch (Exception $refresh_error) {
             error_log("json.php: REFRESH ERROR - AUTH_METHOD=oauth_api_key, api_key=" . substr($api_key ?? 'N/A', 0, 8) . "..., Exception: " . $refresh_error->getMessage());
             error_log("json.php: REFRESH ERROR - Code: " . $refresh_error->getCode());
             error_log("json.php: REFRESH ERROR - Time: {$timestamp}");
+            // Log detailed error info but don't send to client (too much data for watch)
+            error_log("json.php: REFRESH ERROR - Full exception: " . $refresh_error->getMessage());
             header('HTTP/1.1 401 Unauthorized');
-            $exception_message = $refresh_error->getMessage();
-            error_log("json.php: REFRESH ERROR - Exception message: " . $exception_message);
-            $error_details = null;
-            if (preg_match('/\{.*\}/', $exception_message, $matches)) {
-                $error_details = json_decode($matches[0], true);
-            }
-            $response = [
-                "error_message" => "Authentication expired. Please complete OAuth setup again.",
-                "error_code" => $refresh_error->getCode(),
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                "error_message" => "Authentication expired. Please re-authenticate.",
+                "error_code" => 401,
                 "devices" => [],
-                "setup_url" => "/json.php?setup=1",
-                "debug" => "Token refresh failed: $exception_message",
-                "refresh_details" => [
-                    "timestamp" => $timestamp,
-                    "api_key_prefix" => substr($api_key ?? 'N/A', 0, 8),
-                    "refresh_token_prefix" => substr($refresh_token, 0, 8),
-                    "client_id" => $client_creds['client_id'] ?? 'N/A',
-                    "error_code" => $refresh_error->getCode()
-                ]
-            ];
-            if ($error_details && is_array($error_details)) {
-                if (isset($error_details['error'])) {
-                    $response['error'] = $error_details['error'];
-                }
-                if (isset($error_details['error_description'])) {
-                    $response['error_description'] = $error_details['error_description'];
-                }
-            }
-            echo json_encode($response);
+                "setup_url" => "/json.php?setup=1"
+            ], JSON_UNESCAPED_SLASHES);
             exit;
         }
     } else {
@@ -957,8 +967,37 @@ if ($show_all) {
                 'type' => $device_info->type ?? 'unknown',
                 'manufacturer' => $device_info->manufacturerName ?? 'unknown',
                 'model' => $device_info->model ?? 'unknown',
-                'deviceTypeName' => $device_info->deviceTypeName ?? 'unknown'
+                'deviceTypeName' => $device_info->deviceTypeName ?? 'unknown',
+                'presentationId' => $device_info->presentationId ?? 'unknown',
+                'capabilities' => [],
+                'components' => []
             );
+            
+            // Get capabilities for implementation reference
+            if (isset($device_info->components)) {
+                foreach ($device_info->components as $component) {
+                    $component_data = [
+                        'id' => $component->id ?? 'main',
+                        'capabilities' => []
+                    ];
+                    
+                    if (isset($component->capabilities)) {
+                        foreach ($component->capabilities as $capability) {
+                            $cap_info = [
+                                'id' => $capability->id ?? 'unknown',
+                                'version' => $capability->version ?? 1
+                            ];
+                            $component_data['capabilities'][] = $cap_info;
+                            $device_data['capabilities'][] = $cap_info['id']; // Flat list for easy reference
+                        }
+                    }
+                    
+                    $device_data['components'][] = $component_data;
+                }
+            }
+            
+            // Remove duplicate capability IDs in the flat list
+            $device_data['capabilities'] = array_values(array_unique($device_data['capabilities']));
             
             // Try to get value if method exists
             if(method_exists($device, 'get_value')) {
@@ -981,6 +1020,15 @@ if ($show_all) {
                     $device_data['level'] = $device->get_level();
                 } catch (Exception $e) {
                     $device_data['level'] = null;
+                }
+            }
+            
+            // Check what wrapper methods are available
+            $methods_to_check = ['get_value', 'get_level', 'power_on', 'power_off', 'set_level', 'volume', 'open', 'close'];
+            $device_data['available_methods'] = [];
+            foreach ($methods_to_check as $method) {
+                if (method_exists($device, $method)) {
+                    $device_data['available_methods'][] = $method;
                 }
             }
             
