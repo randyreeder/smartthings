@@ -8,7 +8,24 @@ namespace SmartThings;
 
 class GarageDoor extends Generic implements Device {
 
-    use CMD_common;
+    // Don't use CMD_common trait since garage doors don't have switch capability
+    // We'll implement our own power_on/power_off that map to open/close
+
+    /**
+     * Power on maps to opening the garage door
+     * @return bool Returns true if command accepted
+     */
+    public function power_on() : bool {
+        return $this->open();
+    }
+
+    /**
+     * Power off maps to closing the garage door
+     * @return bool Returns true if command accepted
+     */
+    public function power_off() : bool {
+        return $this->close();
+    }
 
     /**
      * Get the current door status
@@ -26,6 +43,21 @@ class GarageDoor extends Generic implements Device {
             return $value;
         }
         return '';
+    }
+
+    /**
+     * Set the door state (for compatibility with generic device control)
+     * @param string $value "open" or "close" or "closed" or "on" (maps to open) or "off" (maps to close)
+     * @return bool Returns true if command accepted
+     */
+    public function set_value($value) {
+        // Map switch values to door control values
+        if ($value === 'on' || $value === 'open') {
+            return $this->open();
+        } elseif ($value === 'off' || $value === 'close' || $value === 'closed') {
+            return $this->close();
+        }
+        return false;
     }
 
     /**

@@ -10,6 +10,10 @@ if (basename($_SERVER['SCRIPT_NAME']) !== basename(__FILE__)) {
 // Disable PHP warnings and deprecation notices for clean JSON output
 error_reporting(E_ERROR | E_PARSE);
 
+// Log all errors to help debug issues
+ini_set('log_errors', 1);
+ini_set('display_errors', 0);
+
 /*
  * SmartThings Device Control API for Garmin Watch - Multiple Authentication Methods
  * 
@@ -32,15 +36,15 @@ error_reporting(E_ERROR | E_PARSE);
 
 // Secure configuration: Use absolute paths outside web root for production
 // Environment variables (most secure) or absolute paths outside web root
-$is_production = !((strpos(__DIR__, '/Users/') === 0 || strpos(__DIR__, '/home/') === 0 && !strpos(__DIR__, '/home1/')));
+$is_production = !(strpos(__DIR__, '/Users/') === 0);
 
 if ($is_production) {
     // Production paths (outside web root) - UPDATE THESE FOR YOUR SERVER
-    $home_dir = getenv('HOME') ?: '/home1/rreeder';
-    $config_file = getenv('SMARTTHINGS_CONFIG_FILE') ?: $home_dir . '/smartthings_config/oauth_tokens.ini';
-    $tokens_dir = getenv('SMARTTHINGS_TOKEN_DIR') ?: $home_dir . '/smartthings_config/tokens';
-    $autoload_file = getenv('SMARTTHINGS_VENDOR_PATH') ?: $home_dir . '/git/smartthings/vendor/autoload.php';
-    $smartthings_src = getenv('SMARTTHINGS_SRC_PATH') ?: $home_dir . '/git/smartthings/src/smartThings';
+    $www_dir = '/var/www';
+    $config_file = getenv('SMARTTHINGS_CONFIG_FILE') ?: $www_dir . '/smartthings_config/oauth_tokens.ini';
+    $tokens_dir = getenv('SMARTTHINGS_TOKEN_DIR') ?: $www_dir . '/smartthings_config/tokens';
+    $autoload_file = getenv('SMARTTHINGS_VENDOR_PATH') ?: $www_dir . '/lib/git/smartthings/vendor/autoload.php';
+    $smartthings_src = getenv('SMARTTHINGS_SRC_PATH') ?: $www_dir . '/lib/git/smartthings/src/smartThings';
 } else {
     // Local development paths (relative)
     $config_file = __DIR__ . '/../oauth_tokens.ini';
@@ -167,7 +171,7 @@ function loadTokensByApiKey($api_key) {
         exit;
     }
     
-    return new SmartThings\SmartThingsAPI($tokens['access_token'], $tokens['refresh_token']);
+    return new SmartThings\SmartThingsAPI($tokens['access_token'], $tokens['refresh_token'], CLIENT_ID, CLIENT_SECRET, $tokens_file);
 }
 // Get the device and perform the control action
 try {
@@ -186,10 +190,33 @@ header('Content-Type: application/json; charset=utf-8');
 
 // Set the device value
 try {
+    error_log("set.php..attempting to set $what to $value on device " . get_class($device));
     if($what == 'value') {
-        $device->set_value($value);
+        $result = $device->set_value($value);
+        error_log("set.php..set_value returned: " . ($result ? 'true' : 'false'));
+        if (!$result) {
+            http_response_code(400);
+            echo json_encode([
+                "error_message" => "Failed to set device value to '$value'. The device may not support this value or the command was rejected.",
+                "error_code" => 400,
+                "device_id" => $device_id,
+                "attempted_value" => $value
+            ]);
+            exit;
+        }
     } elseif($what == 'level') {
-        $device->set_level(intval($value));
+        $result = $device->set_level(intval($value));
+        error_log("set.php..set_level returned: " . ($result ? 'true' : 'false'));
+        if (!$result) {
+            http_response_code(400);
+            echo json_encode([
+                "error_message" => "Failed to set device level to '$value'. The device may not support level control or the command was rejected.",
+                "error_code" => 400,
+                "device_id" => $device_id,
+                "attempted_level" => intval($value)
+            ]);
+            exit;
+        }
     } else {
         http_response_code(400);
         echo json_encode([
@@ -199,11 +226,11 @@ try {
         exit;
     }
 } catch (Exception $e) {
-    error_log("set.php..set value error.." . $e->getMessage() . ".." . $e->getCode());
-    http_response_code($e->getCode());
+    error_log("set.php..set value error.." . $e->getMessage() . ".." . $e->getCode() . ".." . $e->getTraceAsString());
+    http_response_code($e->getCode() ?: 500);
     echo json_encode([
         "error_message" => $e->getMessage(), 
-        "error_code" => $e->getCode()
+        "error_code" => $e->getCode() ?: 500
     ]);
     exit;
 }
