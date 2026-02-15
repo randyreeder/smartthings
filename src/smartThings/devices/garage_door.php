@@ -47,14 +47,14 @@ class GarageDoor extends Generic implements Device {
 
     /**
      * Set the door state (for compatibility with generic device control)
-     * @param string $value "open" or "close" or "closed" or "on" (maps to open) or "off" (maps to close)
+     * @param string $value "open" or "closed" (or legacy "on"/"off")
      * @return bool Returns true if command accepted
      */
     public function set_value($value) {
-        // Map switch values to door control values
-        if ($value === 'on' || $value === 'open') {
+        // Accept state values (open/closed) and legacy switch values (on/off)
+        if ($value === 'open' || $value === 'on') {
             return $this->open();
-        } elseif ($value === 'off' || $value === 'close' || $value === 'closed') {
+        } elseif ($value === 'closed' || $value === 'off') {
             return $this->close();
         }
         return false;
