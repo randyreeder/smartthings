@@ -260,19 +260,19 @@ class SmartThingsAPI {
     private function getDeviceObject($device) {
         $generic_device = new Generic($device);
         $device_obj = $generic_device;
-        
+
         // Check for Tedee lock first (using static method)
         if (Tedee::isDeviceType($device)) {
             $device_obj = new Tedee($device);
             return $device_obj;
         }
-        
+
         // Check for garage door (using static method)
         if (GarageDoor::isDeviceType($device)) {
             $device_obj = new GarageDoor($device);
             return $device_obj;
         }
-        
+
         switch($device['name']) {
             case 'Samsung OCF TV':
                 $device_obj = new TV($device);
@@ -287,6 +287,10 @@ class SmartThingsAPI {
                     break;
                 }
                 $status = $generic_device->status();
+                if(property_exists($status, 'temperatureMeasurement')) {
+                    $device_obj = new TempHumiditySensor($device);
+                    break;
+                }
                 if(property_exists($status, 'switch') && array_key_exists('switch', $status->switch) && array_key_exists('value', $status->switch['switch'])) {
                     if(property_exists($status, 'switchLevel') && array_key_exists('level', $status->switchLevel) && array_key_exists('value', $status->switchLevel['level'])) {
                         $device_obj = new Dimmer($device);

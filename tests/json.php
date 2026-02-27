@@ -882,7 +882,7 @@ if ($debug_mode) {
             ];
             
             // Check what methods are available on this device
-            $methods_to_check = ['get_value', 'get_level', 'power_on', 'power_off', 'set_level', 'volume'];
+            $methods_to_check = ['get_value', 'get_level', 'get_humidity', 'power_on', 'power_off', 'set_level', 'volume'];
             foreach ($methods_to_check as $method) {
                 if (method_exists($device, $method)) {
                     $debug_device['supported_methods'][] = $method;
@@ -918,6 +918,14 @@ if ($debug_mode) {
                 }
             } catch (Exception $e) {
                 $debug_device['current_level'] = 'Error: ' . $e->getMessage();
+            }
+
+            try {
+                if (method_exists($device, 'get_humidity')) {
+                    $debug_device['current_humidity'] = $device->get_humidity();
+                }
+            } catch (Exception $e) {
+                $debug_device['current_humidity'] = 'Error: ' . $e->getMessage();
             }
             
             $debug_devices[] = $debug_device;
@@ -1022,9 +1030,18 @@ if ($show_all) {
                     $device_data['level'] = null;
                 }
             }
+
+            // Try to get humidity if method exists
+            if(method_exists($device, 'get_humidity')) {
+                try {
+                    $device_data['humidity'] = $device->get_humidity();
+                } catch (Exception $e) {
+                    $device_data['humidity'] = null;
+                }
+            }
             
             // Check what wrapper methods are available
-            $methods_to_check = ['get_value', 'get_level', 'power_on', 'power_off', 'set_level', 'volume', 'open', 'close'];
+            $methods_to_check = ['get_value', 'get_level', 'get_humidity', 'power_on', 'power_off', 'set_level', 'volume', 'open', 'close'];
             $device_data['available_methods'] = [];
             foreach ($methods_to_check as $method) {
                 if (method_exists($device, $method)) {
@@ -1067,6 +1084,10 @@ if(count($devices) > 0)
             if(method_exists($device, 'get_level'))
             {
                 $device_basic_data['level'] = $device->get_level();
+            }
+            if(method_exists($device, 'get_humidity'))
+            {
+                $device_basic_data['humidity'] = $device->get_humidity();
             }
             $devices_array[] = $device_basic_data;
         }

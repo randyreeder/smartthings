@@ -32,7 +32,7 @@ class Generic extends SmartThingsAPI implements Device {
     }
 
     public function status(bool $update = false) : object {
-        if ($this->deviceStatus === null || $update) {
+        if ($this->deviceStatus === null || empty($this->deviceStatus) || $update) {
             $command_resp = parent::apiCall('GET', 'devices/' . $this->deviceId . '/status');
             if ($command_resp['code'] == 200 && array_key_exists('main', $command_resp['response']['components']))
             {

@@ -11,6 +11,7 @@ require __DIR__ . '/devices/outlet.php';
 require __DIR__ . '/devices/dimmer.php';
 require __DIR__ . '/devices/tedee.php';
 require __DIR__ . '/devices/garage_door.php';
+require __DIR__ . '/devices/temp_humidity_sensor.php';
 
 interface Device {
 
