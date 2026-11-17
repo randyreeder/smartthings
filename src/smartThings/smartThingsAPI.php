@@ -197,7 +197,6 @@ class SmartThingsAPI {
             $result = file_put_contents($this->user_token_file, json_encode($tokens));
             if ($result !== false) {
                 error_log("SmartThingsAPI: updateUserTokenFile() - Token file updated: " . $this->user_token_file);
-                error_log("SmartThingsAPI: updateUserTokenFile() - New access_token: " . substr($this->access_token, 0, 8) . "... New refresh_token: " . substr($this->refresh_token, 0, 8) . "...");
                 return true;
             } else {
                 error_log("SmartThingsAPI: updateUserTokenFile() - Failed to write token file: " . $this->user_token_file);

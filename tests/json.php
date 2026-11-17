@@ -484,18 +484,12 @@ function handleOAuthCallback($user_id, $auth_code) {
     $curl_error = curl_error($ch);
     curl_close($ch);
 
-    // Add debugging info
-    error_log("OAuth Token Exchange Debug:");
-    error_log("HTTP Code: " . $http_code);
-    error_log("Response: " . $response);
-    error_log("cURL Error: " . $curl_error);
-    error_log("Request Data: " . print_r($token_data, true));
+    error_log("OAuth Token Exchange: HTTP Code: " . $http_code . ", cURL Error: " . $curl_error);
 
     if ($http_code === 200) {
         $tokens = json_decode($response, true);
 
-        // OAuth Token Exchange Success logging
-        error_log("Token Exchange SUCCESS: session_id=$user_id, access_token=" . substr($tokens['access_token'], 0, 8) . "..., refresh_token=" . substr($tokens['refresh_token'], 0, 8) . "...");
+        error_log("Token Exchange SUCCESS: session_id=$user_id");
 
         $api_key = saveUserTokens($user_id, $tokens['access_token'], $tokens['refresh_token']);
 
@@ -658,8 +652,7 @@ function saveUserTokens($user_id, $access_token, $refresh_token) {
     
     file_put_contents($tokens_file, json_encode($tokens));
     
-    // Log the new API key creation
-    error_log("API Key Created: session_id=$user_id, api_key=" . substr($api_key, 0, 8) . "..., access_token=" . substr($access_token, 0, 8) . "..., refresh_token=" . substr($refresh_token, 0, 8) . "...");
+    error_log("API Key Created: session_id=$user_id");
     
     // Also save a session file for polling (temporary, expires in 1 hour)
     $session_file = $tokens_dir . '/session_' . hash('sha256', $user_id) . '.json';
@@ -738,8 +731,9 @@ try {
         $tokens_file = $tokens_dir . '/' . hash('sha256', $api_key) . '.json';
         if (file_exists($tokens_file)) {
             $tokens = json_decode(file_get_contents($tokens_file), true);
-            if (isset($tokens['created']) && isset($tokens['refresh_token'])) {
-                $token_age = time() - $tokens['created'];
+            $last_refreshed = $tokens['refreshed'] ?? $tokens['created'] ?? null;
+            if ($last_refreshed !== null && isset($tokens['refresh_token'])) {
+                $token_age = time() - $last_refreshed;
                 if ($token_age > 43200) { // 12 hours
                     $client_creds = getClientCredentials();
                     $refreshed = $smartAPI->refreshAccessToken($client_creds['client_id'], $client_creds['client_secret']);
@@ -766,8 +760,9 @@ try {
             $tokens_file = $tokens_dir . '/' . hash('sha256', $api_key) . '.json';
             if (file_exists($tokens_file)) {
                 $tokens = json_decode(file_get_contents($tokens_file), true);
-                if (isset($tokens['created'])) {
-                    $token_age = time() - $tokens['created'];
+                $last_refreshed = $tokens['refreshed'] ?? $tokens['created'] ?? null;
+                if ($last_refreshed !== null) {
+                    $token_age = time() - $last_refreshed;
                     if ($token_age < 60) {
                         error_log("json.php: TOKEN TOO NEW - Token is only {$token_age}s old, SmartThings may need more time to propagate. Not attempting refresh.");
                         header('HTTP/1.1 503 Service Unavailable');
@@ -786,19 +781,17 @@ try {
         }
         
         error_log("json.php: REFRESH ATTEMPT - Time: {$timestamp}");
-        error_log("json.php: REFRESH ATTEMPT - AUTH_METHOD=oauth_api_key, api_key=" . substr($api_key ?? 'N/A', 0, 8) . "...");
-        error_log("json.php: REFRESH ATTEMPT - Refresh token (prefix): " . substr($refresh_token, 0, 8) . "...");
-        error_log("json.php: REFRESH ATTEMPT - Refresh token (full): " . $refresh_token);
+        error_log("json.php: REFRESH ATTEMPT - AUTH_METHOD=oauth_api_key");
         error_log("json.php: REFRESH ATTEMPT - Original error: " . $e->getMessage());
         try {
             $client_creds = getClientCredentials();
             error_log("json.php: REFRESH ATTEMPT - Client ID: " . $client_creds['client_id']);
             $refreshed = $smartAPI->refreshAccessToken($client_creds['client_id'], $client_creds['client_secret']);
             if ($refreshed) {
-                error_log("json.php: REFRESH SUCCESS - AUTH_METHOD=oauth_api_key, api_key=" . substr($api_key ?? 'N/A', 0, 8) . "..., new_access_token obtained at {$timestamp}");
+                error_log("json.php: REFRESH SUCCESS - AUTH_METHOD=oauth_api_key, new_access_token obtained at {$timestamp}");
                 // Retry the API call with refreshed token
                 $devices = $smartAPI->list_devices();
-                error_log("json.php: REFRESH SUCCESS - API call succeeded with refreshed token for api_key=" . substr($api_key ?? 'N/A', 0, 8) . "...");
+                error_log("json.php: REFRESH SUCCESS - API call succeeded with refreshed token");
             } else {
                 error_log("json.php: REFRESH FAILED - refreshAccessToken returned false");
                 // Compose a simplified error response for failed refresh
@@ -806,7 +799,7 @@ try {
                 $exception_message = $e->getMessage();
                 error_log("json.php: REFRESH FAILED - Exception message: " . $exception_message);
                 // Log detailed error info but don't send to client (too much data for watch)
-                error_log("json.php: REFRESH FAILED - Timestamp: $timestamp, API key: " . substr($api_key ?? 'N/A', 0, 8) . "..., Refresh token: " . substr($refresh_token, 0, 8) . "...");
+                error_log("json.php: REFRESH FAILED - Timestamp: $timestamp");
                 header('HTTP/1.1 401 Unauthorized');
                 header('Content-Type: application/json; charset=utf-8');
                 echo json_encode([
